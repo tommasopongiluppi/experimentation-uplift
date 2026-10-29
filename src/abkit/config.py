@@ -7,19 +7,25 @@ ROOT: Path = Path(__file__).resolve().parents[2]
 DATA_DIR: Path = ROOT / "data"
 DATA_RAW: Path = DATA_DIR / "raw"
 DATA_PROCESSED: Path = DATA_DIR / "processed"
-DUCKDB_PATH: Path = DATA_PROCESSED / "hillstrom.duckdb"
+DUCKDB_PATH: Path = DATA_DIR / "hillstrom.duckdb"
 REPORTS: Path = ROOT / "reports"
 TABLES: Path = REPORTS / "tables"
 FIGURES: Path = REPORTS / "figures"
 RESULTS_JSON: Path = REPORTS / "results.json"
 
-# Data source
+# Data source (plain http: the original server redirects https to http)
 DATA_URL: str = (
     "http://www.minethatdata.com/"
     "Kevin_Hillstrom_MineThatData_E-MailAnalytics_DataMiningChallenge_2008.03.20.csv"
 )
-RAW_CSV: Path = DATA_RAW / "hillstrom.csv"
-DATA_SHA256: str | None = None  # pinned after the first verified download
+MIRROR_URL: str = "https://hillstorm1.s3.us-east-2.amazonaws.com/hillstorm_no_indices.csv.gz"
+# SHA-256 of files verified at first download; a mismatch on re-download fails loudly.
+KNOWN_SHA256: dict[str, str] = {
+    DATA_URL: "0e5893329d8b93cefecc571777672028290ab69865718020c78c7284f291aece",
+    MIRROR_URL: "bab6578f60db5d792f1c2372c502f029152a5249cf5ea84390f3b7f885d7234f",
+}
+MANIFEST_NAME: str = "manifest.json"
+EXPECTED_ROWS: int = 64_000
 
 # Treatment arms (raw column `segment` is renamed to `arm` during cleaning)
 RAW_ARM_COL: str = "segment"
@@ -58,6 +64,7 @@ SEEDS: dict[str, int] = {
     "simulation": SEED + 3,
     "uplift": SEED + 4,
     "bayes": SEED + 5,
+    "fixture": SEED + 6,
 }
 
 
