@@ -2,9 +2,11 @@
 
 import json
 import logging
+import math
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from abkit import config
@@ -63,3 +65,30 @@ def update_results(section: str, data: dict[str, Any], path: Path = config.RESUL
     path.write_text(json.dumps(dict(sorted(results.items())), indent=2) + "\n")
     logger.info("Updated section %r of %s.", section, path)
     return path
+
+
+def _json_value(x: Any) -> Any:
+    """Convert numpy scalars to Python types, and NaN or infinity to None (JSON null)."""
+    if isinstance(x, np.generic):
+        x = x.item()
+    if isinstance(x, float) and not math.isfinite(x):
+        return None
+    return x
+
+
+def json_records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Turn a table into JSON-safe records for a results.json section.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Table to convert.
+
+    Returns
+    -------
+    list of dict
+        One dict per row; numpy types become Python types and NaN or infinity becomes None.
+    """
+    return [
+        {str(k): _json_value(v) for k, v in row.items()} for row in df.to_dict(orient="records")
+    ]

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from abkit import config
 from abkit.data import download_raw, load_to_duckdb
 from abkit.eda import run_checks
+from abkit.readout import run_frequentist
 from abkit.validate import run_validation
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,17 @@ def run_validity() -> None:
     run_checks()
 
 
+def run_readout() -> None:
+    """Run the frequentist readout, writing its table, results.json section and forest plot.
+
+    Raises
+    ------
+    abkit.eda.SRMError
+        If the sample ratio mismatch check fails.
+    """
+    run_frequentist()
+
+
 def run_all() -> None:
     """Run every pipeline stage end to end."""
     for name, step in STEPS.items():
@@ -51,6 +63,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "data": run_data,
     "validate": run_validate,
     "checks": run_validity,
+    "frequentist": run_readout,
 }
 
 
@@ -67,6 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("data", help="Download or verify the raw file and load it into DuckDB.")
     sub.add_parser("validate", help="Validate the raw table and build the cleaned table.")
     sub.add_parser("checks", help="SRM and balance checks plus pooled EDA.")
+    sub.add_parser("frequentist", help="Frequentist readout of every comparison and metric.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
 

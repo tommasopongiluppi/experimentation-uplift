@@ -274,5 +274,26 @@ favours the email.
 
 ## 13. Deviations
 
-None yet. Each deviation records the date, the section changed, what changed, why, and whether
+Each deviation records the date, the section changed, what changed, why, and whether
 it was made before or after seeing the outcome results.
+
+### D1. Multiplicity for the winsorised sensitivity rows; frequentist bootstrap for spend
+
+- **Date:** 2026-11-03. **Sections:** §6, §8. **Made before** any outcome was compared between
+  arms (written before the frequentist readout was first run).
+- **What changed.**
+  1. §8 repeats the primary analysis on winsorised spend but does not say how its p-values are
+     adjusted. They mirror the raw-spend rows and are never pooled with them: the two
+     winsorised email-vs-control tests form their own Holm family (`sensitivity`), and the
+     winsorised mens-vs-womens test is a family of one (`sensitivity_secondary`, adjusted
+     p = unadjusted p), so it does not change the size of the pre-registered secondary family.
+     Sensitivity rows inform robustness only; decisions use the primary and secondary families.
+  2. A percentile bootstrap interval (10,000 resamples, `config.SEEDS["bootstrap"]`) is
+     reported next to the Welch interval for every spend row, raw and winsorised, as a
+     robustness check on the normal approximation for a zero-inflated, heavy-tailed outcome. It
+     does not replace the Welch interval or change any decision.
+  3. Implementation detail for §8: the 95th percentile of converters' spend uses linear
+     interpolation between order statistics (the numpy / pandas default).
+- **Why.** The plan left these unspecified; fixing them before seeing results keeps them from
+  being chosen by their outcome.
+

@@ -128,3 +128,139 @@ scales and the results agree with pandas to 1e-9.
   95.05.
 - A hand calculation with y = [0, 1, 1, 2] and x = [1, 2, 3, 4] gives mean 1, variance 2/3,
   covariance 1; one-row arms give NaN variance; winsorising with no converters raises an error.
+
+## Difference in proportions: z-test and Newcombe interval
+
+`abkit.frequentist.diff_in_proportions`, inputs from `abkit.metrics.arm_metrics`.
+
+**What it does.** Compares a rate (conversion or visit) between two arms: the difference
+p_t − p_c, a p-value and a 95% interval.
+
+**Formula.**
+- Test: two-proportion z-test with the pooled rate p̄ = (x_t + x_c) / (n_t + n_c) under the null
+  hypothesis of no difference: z = (p_t − p_c) / sqrt(p̄ (1 − p̄) (1/n_t + 1/n_c)), two-sided
+  normal p-value.
+- Interval: Newcombe's hybrid score interval (Newcombe 1998, method 10). Each arm gets a Wilson
+  score interval (l, u); the difference d = p_t − p_c then has
+  lower = d − sqrt((p_t − l_t)² + (u_c − p_c)²) and upper = d + sqrt((u_t − p_t)² + (p_c − l_c)²).
+  Unlike the simple Wald interval, it stays well behaved for rare events such as a 1% conversion
+  rate.
+
+**Assumptions.** Customers are independent and each arm's outcome is binomial. The normal
+approximation for the test needs enough events in each arm (hundreds here).
+
+**How it is tested.** The z statistic and p-value match `statsmodels` `proportions_ztest`, the
+interval matches `confint_proportions_2indep(method="newcomb")` and the Wilson interval matches
+`proportion_confint(method="wilson")`, all to 1e-8, including edge cases with 0 or n events. A
+slow simulation of 2,000 experiments of 21,000 customers per arm, at visit and conversion rates
+near the observed pooled rates, checks that the interval covers the true difference 95% of the
+time, within 3 Monte Carlo standard errors.
+
+## Welch difference in means
+
+`abkit.frequentist.diff_in_means`, inputs from `abkit.metrics.arm_metrics`.
+
+**What it does.** Compares mean spend per customer between two arms without assuming equal
+variances. It is the primary analysis (analysis plan §6).
+
+**Formula.** se = sqrt(s_t²/n_t + s_c²/n_c), t = (mean_t − mean_c) / se, with
+Welch–Satterthwaite degrees of freedom
+ν = se⁴ / ((s_t²/n_t)² / (n_t − 1) + (s_c²/n_c)² / (n_c − 1)), and the interval
+diff ± t_{0.975, ν} · se. Everything comes from per-arm n, mean and unbiased variance, so the
+row-level data is not needed.
+
+**Assumptions.** Independent customers and a sample mean that is approximately normal. Spend
+is far from normal (about 99% zeros and a long right tail), so this relies on the central limit
+theorem with about 21,000 customers per arm. The bootstrap below and the coverage simulation
+check that this is good enough.
+
+**How it is tested.** The t statistic, degrees of freedom, p-value and interval match
+`scipy.stats.ttest_ind(equal_var=False)` to 1e-8. A slow simulation of 2,000 experiments with
+zero-inflated, heavy-tailed spend shaped like the data (about 1% converters; converter spend with
+a $29.99 floor, median about $81 and a long right tail top-coded at $499) checks that the
+interval covers the true difference 95% of the time, within 3 Monte Carlo standard errors. The
+true mean of that spend comes from a closed-form expression, itself checked by Monte Carlo.
+
+## Relative lift with a delta-method interval
+
+`abkit.frequentist.relative_lift_ci`.
+
+**What it does.** Expresses an effect as a percentage of the control mean,
+(mean_t − mean_c) / mean_c, with a 95% interval.
+
+**Formula.** The interval is built on the log ratio and transformed back:
+Var(log(mean_t / mean_c)) ≈ s_t² / (n_t mean_t²) + s_c² / (n_c mean_c²) (delta method), and
+the interval is exp(log ratio ± 1.96 · se) − 1. On the log scale the ratio is closer to normal,
+and the interval is asymmetric and never falls below −100%. For rates, s² = p (1 − p). The lift
+is undefined if either mean is zero.
+
+**Assumptions.** Both means are positive and estimated precisely enough for a first-order
+(delta-method) approximation to hold.
+
+**How it is tested.** For rates it equals the Katz log interval for a risk ratio, and matches
+`statsmodels` `confint_proportions_2indep(method="log", compare="ratio")` to 1e-8. A closed-form
+case (means 2 and 1, variances 4 and 1, n = 100: Var = 0.02) is checked by hand. The coverage
+simulation checks its coverage for visit, conversion and spend.
+
+## Percentile bootstrap for spend
+
+`abkit.frequentist.bootstrap_diff_in_means`.
+
+**What it does.** A robustness check on the Welch interval for spend that makes no normal
+approximation: resample each arm's customers with replacement 10,000 times, recompute the
+difference in means, and take the 2.5% and 97.5% quantiles of the replicates (Deviation D1).
+
+**Formula.** A resample of an arm is fully described by how many times each distinct value is
+drawn, which is Multinomial(n, frequency of each value / n). Drawing these counts has exactly
+the same distribution as drawing n row indices, but needs one number per distinct value instead
+of one per customer. Spend is about 99% zeros, so this is fast and fully vectorised. Each
+endpoint is reported with a Monte Carlo standard error from the order statistics at
+B·q ± sqrt(B q (1 − q)).
+
+**Assumptions.** Customers are independent and the sample represents the population. Percentile
+intervals can under-cover slightly in small samples; with 21,000 customers per arm this is minor.
+
+**How it is tested.** The standard deviation of the replicates matches its exact value,
+sqrt(var_t/n_t + var_c/n_c) with n-denominator variances, within 3 Monte Carlo standard errors.
+On normal data the interval agrees with the Welch interval up to Monte Carlo error. The same
+seed gives identical results.
+
+## Multiple-testing corrections: Holm and Benjamini–Hochberg
+
+`abkit.frequentist.holm`, `abkit.frequentist.benjamini_hochberg`.
+
+**What it does.** Adjusts p-values when several hypotheses are tested together. Holm controls
+the family-wise error rate (the chance of any false positive) and is used for the primary family.
+Benjamini–Hochberg controls the false discovery rate (the expected share of false positives
+among rejections) and is used for the secondary family (analysis plan §6).
+
+**Formula.** Sort the m p-values in ascending order, p_(1) ≤ … ≤ p_(m).
+- Holm: p_adj(i) = max over j ≤ i of min(1, (m − j + 1) p_(j)).
+- BH: p_adj(i) = min over j ≥ i of min(1, m p_(j) / j).
+Reject when p_adj < 0.05.
+
+**Assumptions.** Holm holds under any dependence between tests. BH holds under independence or
+positive dependence, which is plausible here since the comparisons share arms and the metrics
+are positively related.
+
+**How it is tested.** Both match `statsmodels.stats.multitest.multipletests` (`holm`, `fdr_bh`)
+to 1e-12 for families of 1 to 25 p-values, including ties. Invalid inputs raise an error.
+
+## Frequentist readout
+
+`abkit.readout.run_frequentist`, output `reports/tables/readout_frequentist.csv`, the
+`frequentist` section of `reports/results.json` and `reports/figures/forest_relative_lift.png`.
+
+**What it does.** Runs every pre-registered comparison (mens vs control, womens vs control,
+mens vs womens; first arm minus second) on spend, conversion and visit, plus winsorised spend as
+the sensitivity analysis. Each row reports the two means, the absolute difference with its
+interval, the relative lift with its interval, the unadjusted and adjusted p-values and the
+multiple-testing family. Families: `primary` (spend vs control, Holm), `secondary` (conversion
+and visit vs control, and mens vs womens on all three, BH over 7 tests), `sensitivity`
+(winsorised spend vs control, Holm) and `sensitivity_secondary` (winsorised mens vs womens,
+unadjusted); the last two are set by Deviation D1. Spend rows also carry the bootstrap interval.
+The readout refuses to run if the sample ratio mismatch check fails.
+
+**How it is tested.** On the fixture: one row per comparison and metric, family sizes 2 / 7 /
+2 / 1, adjusted p-values equal to Holm or BH applied within each family, and means, differences
+and Welch p-values that match a row-level pandas and scipy calculation.

@@ -266,3 +266,73 @@ def plot_balance(
         ax.set_xlabel(f"Standardised mean difference (dashed: ±{threshold})")
         ax.legend(loc="lower right")
         return save(fig, path)
+
+
+FOREST_METRIC_LABELS: dict[str, str] = {
+    "spend": "Spend per customer",
+    "spend_winsorised": "Spend, winsorised (sensitivity)",
+    "conversion": "Conversion rate",
+    "visit": "Visit rate",
+}
+
+
+def plot_forest(readout: pd.DataFrame, path: Path) -> Path:
+    """Forest plot of relative lifts with their 95% intervals, grouped by metric.
+
+    Parameters
+    ----------
+    readout : pandas.DataFrame
+        Frequentist readout with columns ``metric``, ``treatment``, ``control``, ``rel_lift``,
+        ``rel_ci_low`` and ``rel_ci_high``.
+    path : Path
+        Output PNG path.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    metrics = list(dict.fromkeys(readout["metric"]))
+    comparisons = list(dict.fromkeys(zip(readout["treatment"], readout["control"], strict=True)))
+    colours = {
+        (t, c): (config.ARM_COLORS[t] if c == config.CONTROL else TEXT_SECONDARY)
+        for t, c in comparisons
+    }
+    gap = 0.8  # vertical distance between comparisons within a metric group
+    step = gap * len(comparisons) + 1.0
+    with styled():
+        fig, ax = new_figure((8.0, 0.42 * step * len(metrics) + 1.4))
+        ticks, labels = [], []
+        for g, metric in enumerate(metrics):
+            base = -g * step
+            ticks.append(base - gap * (len(comparisons) - 1) / 2)
+            labels.append(FOREST_METRIC_LABELS.get(metric, metric))
+            part = readout[readout["metric"] == metric]
+            for k, (t, c) in enumerate(comparisons):
+                row = part[(part["treatment"] == t) & (part["control"] == c)]
+                if row.empty:
+                    continue
+                r = row.iloc[0]
+                y = base - k * gap
+                est = 100 * r["rel_lift"]
+                lo, hi = 100 * r["rel_ci_low"], 100 * r["rel_ci_high"]
+                ax.plot([lo, hi], [y, y], color=colours[(t, c)], linewidth=2.0, zorder=2)
+                ax.scatter(
+                    [est],
+                    [y],
+                    s=40,
+                    color=colours[(t, c)],
+                    edgecolor=SURFACE,
+                    linewidth=1.0,
+                    zorder=3,
+                    label=f"{t} vs {c}" if g == 0 else None,
+                )
+        ax.axvline(0, color=TEXT_SECONDARY, linewidth=0.9)
+        ax.set_yticks(ticks, labels)
+        ax.tick_params(axis="y", length=0)
+        ax.grid(axis="y", visible=False)
+        ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda v, _: f"{v:+.0f}%"))
+        ax.set_xlabel("Relative lift (first arm vs second), 95% interval")
+        ax.set_title("Relative lift by metric and comparison")
+        ax.legend(loc="lower right")
+        return save(fig, path)
