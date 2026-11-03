@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from abkit import config, plots
+from abkit.cuped import cuped, moments_from_stats, pretreatment_design, regression_adjustment
 from abkit.eda import SRMError
 from abkit.frequentist import (
     benjamini_hochberg,
@@ -21,7 +22,7 @@ from abkit.frequentist import (
     holm,
     srm_test,
 )
-from abkit.metrics import arm_counts, arm_metrics, run_sql
+from abkit.metrics import arm_counts, arm_metrics, arm_sufficient_stats, run_sql
 from abkit.report import json_records, update_results, write_table
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,8 @@ FAMILY_METHODS: dict[str, str] = {
 N_RESAMPLES: int = 10_000
 TABLE_NAME = "readout_frequentist"
 FIGURE_NAME = "forest_relative_lift.png"
+CUPED_TABLE_NAME = "readout_cuped"
+CUPED_FIGURE_NAME = "intervals_raw_cuped_lin.png"
 
 
 def family_of(metric: str, treatment: str, control: str) -> str:
@@ -253,3 +256,157 @@ def run_frequentist(
     )
     logger.info("Frequentist readout written: %d rows.", len(table))
     return table
+
+
+def build_cuped_readout(
+    con: duckdb.DuckDBPyConnection, alpha: float = config.ALPHA
+) -> pd.DataFrame:
+    """CUPED and Lin regression-adjusted estimates for every comparison and metric (plan §7).
+
+    CUPED runs on the per-arm sums from ``sql/arm_metrics.sql``; the Lin adjustment runs on
+    the rows from ``sql/adjustment_rows.sql``. The raw column is the unadjusted Welch
+    difference for every metric (rates included), so all three estimators are compared on
+    the same footing. Adjusted p-values use the same families as the frequentist readout;
+    these estimates are reported next to the headline, never in its place (plan §6).
+
+    Parameters
+    ----------
+    con : duckdb.DuckDBPyConnection
+        Connection with a ``customers`` table.
+    alpha : float
+        Two-sided level.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per comparison and metric.
+    """
+    sums = {
+        "spend": arm_sufficient_stats(con),
+        SPEND_WINSORISED: arm_sufficient_stats(con, winsorize=True),
+    }
+    rows_df = run_sql(con, "adjustment_rows")
+    design = pretreatment_design(rows_df)
+
+    rows = []
+    for metric in READOUT_METRICS:
+        st = sums[SPEND_WINSORISED] if metric == SPEND_WINSORISED else sums["spend"]
+        sql_metric = "spend" if metric == SPEND_WINSORISED else metric
+        for treatment, control in COMPARISONS:
+            cu = cuped(
+                moments_from_stats(st, treatment, sql_metric),
+                moments_from_stats(st, control, sql_metric),
+                alpha,
+            )
+            mask = rows_df["arm"].isin([treatment, control]).to_numpy()
+            lin = regression_adjustment(
+                rows_df.loc[mask, metric],
+                (rows_df.loc[mask, "arm"] == treatment).astype(float),
+                design.loc[mask],
+                alpha,
+            )
+            rows.append(
+                {
+                    "comparison": f"{treatment}_vs_{control}",
+                    "treatment": treatment,
+                    "control": control,
+                    "metric": metric,
+                    "family": family_of(metric, treatment, control),
+                    "n_treatment": int((rows_df.loc[mask, "arm"] == treatment).sum()),
+                    "n_control": int((rows_df.loc[mask, "arm"] == control).sum()),
+                    "raw_diff": cu.raw_diff,
+                    "raw_se": cu.raw_se,
+                    "raw_ci_low": cu.raw_ci_low,
+                    "raw_ci_high": cu.raw_ci_high,
+                    "cuped_diff": cu.diff,
+                    "cuped_se": cu.se,
+                    "cuped_ci_low": cu.ci_low,
+                    "cuped_ci_high": cu.ci_high,
+                    "cuped_p_value": cu.p_value,
+                    "theta": cu.theta,
+                    "rho": cu.rho,
+                    "cuped_variance_reduction": cu.variance_reduction,
+                    "cuped_ci_width_ratio": cu.ci_width_ratio,
+                    "lin_diff": lin.diff,
+                    "lin_se": lin.se,
+                    "lin_ci_low": lin.ci_low,
+                    "lin_ci_high": lin.ci_high,
+                    "lin_p_value": lin.p_value,
+                    "lin_n_covariates": lin.n_covariates,
+                    "lin_variance_reduction": 1 - (lin.se / cu.raw_se) ** 2,
+                    "lin_ci_width_ratio": (lin.ci_high - lin.ci_low)
+                    / (cu.raw_ci_high - cu.raw_ci_low),
+                }
+            )
+    table = pd.DataFrame(rows)
+    for est in ("cuped", "lin"):
+        p_adj = adjust_pvalues(table[f"{est}_p_value"], table["family"])
+        table.insert(table.columns.get_loc(f"{est}_p_value") + 1, f"{est}_p_adj", p_adj)
+    return table
+
+
+def run_cuped(
+    db_path: Path = config.DUCKDB_PATH, reports_dir: Path = config.REPORTS
+) -> pd.DataFrame:
+    """Run CUPED and the Lin adjustment and write the table, results.json section and figure.
+
+    Parameters
+    ----------
+    db_path : Path
+        DuckDB database holding the ``customers`` table.
+    reports_dir : Path
+        Reports directory.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The adjusted readout table.
+
+    Raises
+    ------
+    SRMError
+        If the sample ratio mismatch check fails (plan §5 blocks the readout).
+    """
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        srm = srm_test(arm_counts(con))
+        if not srm.passed:
+            raise SRMError(f"SRM check failed (p = {srm.p_value:.2e}); readout blocked.")
+        table = build_cuped_readout(con)
+
+    write_table(table, CUPED_TABLE_NAME, reports_dir / "tables")
+    plots.plot_adjusted_intervals(table, reports_dir / "figures" / CUPED_FIGURE_NAME)
+    summary = (
+        table.groupby("metric", sort=False)[
+            ["rho", "cuped_variance_reduction", "lin_variance_reduction"]
+        ]
+        .agg(["min", "max"])
+        .round(12)
+    )
+    update_results(
+        "cuped",
+        {
+            "covariate": "history",
+            "theta_pooling": "both arms of each comparison",
+            "lin_covariates": list(pretreatment_design(_empty_design_frame()).columns),
+            "lin_standard_errors": "HC2",
+            "raw_estimator": "Welch difference in means (all metrics)",
+            "table": f"tables/{CUPED_TABLE_NAME}.csv",
+            "figure": f"figures/{CUPED_FIGURE_NAME}",
+            "variance_reduction_by_metric": {
+                str(m): {f"{a}_{b}": float(summary.loc[m, (a, b)]) for a, b in summary.columns}
+                for m in summary.index
+            },
+            "rows": json_records(table),
+        },
+        reports_dir / "results.json",
+    )
+    logger.info("CUPED readout written: %d rows.", len(table))
+    return table
+
+
+def _empty_design_frame() -> pd.DataFrame:
+    """One synthetic row with the first level of every categorical, to list design columns."""
+    row = dict.fromkeys(config.PRE_TREATMENT_COLS, 0)
+    for col in ("history_segment", "zip_code", "channel"):
+        row[col] = next(iter(config.CATEGORY_MAPS[col].values()))
+    return pd.DataFrame([row])

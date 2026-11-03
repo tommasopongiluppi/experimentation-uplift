@@ -264,3 +264,120 @@ The readout refuses to run if the sample ratio mismatch check fails.
 **How it is tested.** On the fixture: one row per comparison and metric, family sizes 2 / 7 /
 2 / 1, adjusted p-values equal to Holm or BH applied within each family, and means, differences
 and Welch p-values that match a row-level pandas and scipy calculation.
+
+## CUPED (variance reduction with a pre-experiment covariate)
+
+`abkit.cuped.cuped`, inputs from `sql/arm_metrics.sql` via `abkit.cuped.moments_from_stats`.
+
+**What it does.** Removes the part of each customer's outcome that was predictable from before
+the experiment, so the same effect is estimated with less noise (analysis plan §7). The
+pre-registered covariate is `history`, past-year spend in dollars, used as is.
+
+**Formula.** For each comparison, on the customers of both arms pooled:
+θ = cov(Y, X) / var(X), and Y_adj = Y − θ (X − mean(X)). The effect is the Welch difference in
+means of Y_adj. Everything comes from per-arm sums (n, ΣY, ΣY², ΣX, ΣX², ΣXY), so no row-level
+data is needed: per arm, mean(Y_adj) = mean(Y) − θ (mean_arm(X) − mean(X)) and
+var(Y_adj) = var(Y) − 2θ cov(X, Y) + θ² var(X). Reported next to it:
+- ρ, the pooled correlation of X and Y;
+- the variance reduction, 1 − var(Y_adj) / var(Y), using within-arm variances pooled over the
+  two arms (the quantity that drives the standard error); it is close to ρ²;
+- the ratio of the CUPED interval width to the unadjusted Welch interval width, about
+  sqrt(1 − ρ²).
+
+"Pooled" means the two arms being compared (mens and control for mens vs control, and so on).
+θ is the same for both arms, so the adjustment cannot create a difference between them.
+
+**Assumptions.** X is measured before treatment, so the email cannot change it, and by
+randomisation mean(X) is the same in expectation in both arms. The adjustment therefore
+removes zero in expectation and the estimate stays unbiased, whatever the true relationship
+between X and Y. The linear form only affects how much variance is removed, not validity. The
+variance formula treats θ as known; the error from estimating it is of order 1/n.
+
+**Why the reduction is small here.** The variance falls by a factor of about (1 − ρ²), so the
+gain is governed by ρ², and a correlation of 0.1 would remove only 1% of the variance. Past-year
+spend has little to say about this outcome:
+- About 99% of customers spend nothing in the two-week window, whatever their history. The
+  variance of spend is almost entirely the question of *whether* a customer buys in those two
+  weeks, plus the size of a rare order, and a year's total says little about either.
+- The window is short. A two-week purchase is a rare, largely random event, even for a good
+  customer; the year-long total averages over many such windows, the outcome sees one.
+- `history` is itself awkward for a linear fit: about an eighth of customers sit at its
+  minimum, and its long right tail (into the thousands) drives θ.
+- Spend is top-coded at $499 in the source, which cuts off the large orders that a big past
+  spender might place.
+
+So the achieved reduction is reported as it is (the `cuped` section of `reports/results.json`
+and `reports/tables/readout_cuped.csv`); nothing was tuned, transformed or added to raise it.
+The pooled correlations in the `eda.history_correlations` section of `results.json` predicted
+this before any arm was compared. Visit, the most frequent outcome, gains the most.
+
+**How it is tested.**
+- On skewed synthetic data, θ, ρ, the adjusted difference, the Welch p-value and interval, the
+  variance reduction and the width ratio all match a row-level calculation (adjust each row,
+  then `scipy.stats.ttest_ind(equal_var=False)`) to 1e-8.
+- With Y = 2X + 5D exactly, θ = 2, the estimate is exactly 5 and the variance reduction is 1.
+- Sums taken from the SQL metric layer match pandas on the fixture.
+- Monte Carlo, with a planted effect τ = 0.1 and a covariate with known within-arm correlation
+  ρ (2,000 customers per arm):
+  - unbiased: over 1,000 experiments the mean estimate is within 3 Monte Carlo standard errors
+    of τ;
+  - variance reduction ≈ ρ² for ρ = 0.3, 0.6, 0.9: the mean reported reduction is within 3
+    MCSE of ρ², and the realised variance of the CUPED estimate across experiments, divided by
+    that of the raw estimate, is within 3 MCSE of 1 − ρ² (MCSE of a ratio of variances from
+    the ratio-estimator formula on paired experiments);
+  - no harm: with ρ = 0, the variance ratio is within 3 MCSE of 1;
+  - slow: the 95% interval covers τ in 95% of 2,000 experiments, within 3 MCSE
+    (sqrt(0.95 × 0.05 / 2000)).
+
+## Regression adjustment (Lin 2013)
+
+`abkit.cuped.regression_adjustment`, covariates from `abkit.cuped.pretreatment_design`, rows
+from `sql/adjustment_rows.sql`.
+
+**What it does.** The sensitivity analysis to CUPED in plan §7. It adjusts for every
+pre-treatment variable at once and lets their effects differ by arm, which can capture
+non-linear relationships (through the `history_segment` bands) and heterogeneous effects that
+CUPED's single linear term misses.
+
+**Formula.** For each comparison, OLS on the customers of the two arms:
+Y = a + τ D + β' Xc + γ' (D · Xc) + error, where D = 1 for the first arm and Xc are the
+covariates centred at their pooled mean. Because of the centring, τ is the average treatment
+effect over the pooled sample. Its standard error is HC2 heteroskedasticity-robust
+(statsmodels), with a normal 95% interval. Covariates: `recency`, `history`, `mens`, `womens`,
+`newbie`, and one indicator per level of `history_segment`, `zip_code` and `channel` except a
+fixed reference level (15 columns). Columns that are constant in a sample are dropped.
+
+**Assumptions.** Randomisation and pre-treatment covariates only. The linear model does not
+need to be correct: with the interactions, Lin (2013) shows the estimator is consistent and,
+asymptotically, never less precise than the unadjusted difference, and HC2 gives valid
+standard errors under heteroskedasticity. In finite samples the extra 30 parameters cost a
+little, so when the covariates explain almost nothing the interval can be marginally wider
+than the raw one.
+
+**How it is tested.**
+- The estimate, HC2 standard error and p-value match `statsmodels` formula
+  `y ~ d * (x1c + x2c)` with `cov_type="HC2"` to 1e-8.
+- With one binary covariate (a saturated model), the estimate equals the stratified difference
+  in means weighted by the pooled stratum shares.
+- The design matrix has the fixed 15 columns, contains no outcome, and rejects any variable that
+  is not pre-treatment.
+- Monte Carlo, with an effect that varies with the covariate: unbiased within 3 MCSE over 300
+  experiments; slow: 95% coverage within 3 MCSE over 2,000 experiments with heteroskedastic
+  noise and a three-level covariate.
+
+## Adjusted readout
+
+`abkit.readout.run_cuped`, output `reports/tables/readout_cuped.csv`, the `cuped` section of
+`reports/results.json` and `reports/figures/intervals_raw_cuped_lin.png`.
+
+**What it does.** Applies CUPED and the Lin adjustment to every comparison and metric of the
+frequentist readout (spend, winsorised spend, conversion, visit; mens vs control, womens vs
+control, mens vs womens). Each row shows the raw Welch difference, the CUPED and Lin estimates
+with their intervals, θ, ρ, the variance reductions and the interval-width ratios. Lin's
+variance reduction is 1 − (se_Lin / se_raw)². The raw column here is the Welch difference for
+rates too (not the Newcombe interval of the headline readout), so the three estimators are
+compared on the same footing. Adjusted p-values use the families of the frequentist readout.
+These estimates sit next to the headline estimate, never in its place (plan §6).
+
+**How it is tested.** On the fixture: one row per comparison and metric, raw differences and ρ
+that match pandas, and the table, figure and results section are written.

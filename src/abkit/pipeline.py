@@ -8,7 +8,7 @@ from collections.abc import Callable
 from abkit import config
 from abkit.data import download_raw, load_to_duckdb
 from abkit.eda import run_checks
-from abkit.readout import run_frequentist
+from abkit.readout import run_cuped, run_frequentist
 from abkit.validate import run_validation
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,17 @@ def run_readout() -> None:
     run_frequentist()
 
 
+def run_adjusted() -> None:
+    """Run CUPED and the Lin regression adjustment, writing their table, section and figure.
+
+    Raises
+    ------
+    abkit.eda.SRMError
+        If the sample ratio mismatch check fails.
+    """
+    run_cuped()
+
+
 def run_all() -> None:
     """Run every pipeline stage end to end."""
     for name, step in STEPS.items():
@@ -64,6 +75,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "validate": run_validate,
     "checks": run_validity,
     "frequentist": run_readout,
+    "cuped": run_adjusted,
 }
 
 
@@ -81,6 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("validate", help="Validate the raw table and build the cleaned table.")
     sub.add_parser("checks", help="SRM and balance checks plus pooled EDA.")
     sub.add_parser("frequentist", help="Frequentist readout of every comparison and metric.")
+    sub.add_parser("cuped", help="CUPED and Lin regression-adjusted estimates.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
 

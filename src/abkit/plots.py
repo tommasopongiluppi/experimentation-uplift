@@ -336,3 +336,88 @@ def plot_forest(readout: pd.DataFrame, path: Path) -> Path:
         ax.set_title("Relative lift by metric and comparison")
         ax.legend(loc="lower right")
         return save(fig, path)
+
+
+# Estimator colours for the adjusted-interval figure. Raw is the neutral reference; CUPED and
+# Lin take categorical slots 7 (violet) and 4 (yellow), so they never reuse an arm's colour.
+# Marker shapes are a second encoding, and the table behind the figure is the text view.
+ESTIMATOR_STYLES: dict[str, tuple[str, str, str]] = {
+    "raw": ("Raw (Welch)", TEXT_SECONDARY, "o"),
+    "cuped": ("CUPED (history)", "#6250d6", "s"),
+    "lin": ("Lin regression (all pre-treatment)", "#eda100", "D"),
+}
+
+
+def plot_adjusted_intervals(table: pd.DataFrame, path: Path) -> Path:
+    """Small multiples of raw, CUPED and Lin-adjusted 95% intervals, one panel per metric.
+
+    Parameters
+    ----------
+    table : pandas.DataFrame
+        Output of :func:`abkit.readout.build_cuped_readout`: columns ``metric``,
+        ``treatment``, ``control`` and ``{raw,cuped,lin}_{diff,ci_low,ci_high}``.
+    path : Path
+        Output PNG path.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    metrics = list(dict.fromkeys(table["metric"]))
+    comparisons = list(dict.fromkeys(zip(table["treatment"], table["control"], strict=True)))
+    n_cols = 2
+    n_rows = -(-len(metrics) // n_cols)
+    gap, step = 0.25, 1.2
+    with styled():
+        fig = Figure(figsize=(10.0, 2.6 * n_rows + 1.0), layout="constrained")
+        axes = fig.subplots(n_rows, n_cols, squeeze=False).ravel()
+        for ax, metric in zip(axes, metrics, strict=False):
+            part = table[table["metric"] == metric]
+            is_rate = metric in ("visit", "conversion")
+            scale = 100.0 if is_rate else 1.0
+            ticks, labels = [], []
+            for k, (t, c) in enumerate(comparisons):
+                r = part[(part["treatment"] == t) & (part["control"] == c)].iloc[0]
+                base = -k * step
+                ticks.append(base)
+                labels.append(f"{t} vs {c}")
+                for j, (est, (name, colour, marker)) in enumerate(ESTIMATOR_STYLES.items()):
+                    y = base + gap * (1 - j)
+                    lo, hi = scale * r[f"{est}_ci_low"], scale * r[f"{est}_ci_high"]
+                    ax.plot([lo, hi], [y, y], color=colour, linewidth=2.0, zorder=2)
+                    ax.scatter(
+                        [scale * r[f"{est}_diff"]],
+                        [y],
+                        s=40,
+                        marker=marker,
+                        color=colour,
+                        edgecolor=SURFACE,
+                        linewidth=1.0,
+                        zorder=3,
+                        label=name if (k == 0 and ax is axes[0]) else None,
+                    )
+            ax.axvline(0, color=TEXT_SECONDARY, linewidth=0.9)
+            ax.set_yticks(ticks, labels)
+            ax.tick_params(axis="y", length=0)
+            ax.grid(axis="y", visible=False)
+            if is_rate:
+                ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda v, _: f"{v:+.1f} pp"))
+            else:
+                ax.xaxis.set_major_formatter(
+                    mpl.ticker.FuncFormatter(
+                        lambda v, _: f"{'+' if v > 0 else '-' if v < 0 else ''}${abs(v):.2f}"
+                    )
+                )
+            ax.set_title(FOREST_METRIC_LABELS.get(metric, metric), fontsize=11)
+        for ax in axes[len(metrics) :]:
+            ax.set_visible(False)
+        fig.suptitle(
+            "Difference vs comparison arm: raw, CUPED and regression-adjusted 95% intervals",
+            x=0.01,
+            ha="left",
+            fontweight="bold",
+            fontsize=13,
+        )
+        fig.legend(loc="outside lower center", ncol=len(ESTIMATOR_STYLES))
+        return save(fig, path)
