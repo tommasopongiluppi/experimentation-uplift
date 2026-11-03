@@ -91,3 +91,40 @@ nothing about treatment effects.
 
 **How it is tested.** It matches `numpy.corrcoef` on the fixture for spend, visit and
 conversion.
+
+## Metric layer: per-arm sufficient statistics
+
+`abkit.metrics.arm_metrics`, data from `sql/arm_metrics.sql`.
+
+**What it does.** Reduces each arm to a few sums, from which every mean, variance and
+covariance used in the readout is formed. This is how production experimentation platforms
+work: aggregate in SQL, infer in Python. The database returns per arm: n; the sum and sum of
+squares of `visit`, `conversion` and `spend`; the sum and sum of squares of `history` and its
+cross-product with each outcome (for CUPED); and the number of converters with the sum and sum
+of squares of their spend. Python turns these into a tidy table with one row per arm and metric
+(`visit`, `conversion`, `spend`, and `spend_converters`, spend among converters).
+
+**Formula.** With n rows, sum S, sum of squares Q, covariate sum Sx and cross-product P:
+mean = S / n, unbiased variance = (Q − S²/n) / (n − 1), and covariance with `history` =
+(P − S·Sx/n) / (n − 1). With fewer than two rows, variance and covariance are undefined (NaN).
+
+**Winsorised spend.** The same query takes a `winsorize` parameter. When set, spend is replaced
+by min(spend, c), where c is the 95th percentile of converters' spend pooled across all arms
+(analysis plan §8), computed in SQL with linear interpolation between order statistics
+(`quantile_cont`, the numpy/pandas default). Zero spend is unchanged. The cap is returned with
+the result so it can be reported.
+
+**Assumptions.** None beyond finite values. The sum-of-squares formula can lose precision when
+the mean is very large relative to the spread; here the outcomes and `history` are on modest
+scales and the results agree with pandas to 1e-9.
+
+**How it is tested.**
+- On the test fixture, every n, sum, sum of squares, mean, variance and covariance matches a
+  pandas group-by to a tolerance of 1e-9, for raw and for winsorised spend.
+- The cap equals `numpy.quantile` of converters' spend at 0.95, binds on the fixture, and is
+  not the all-customer quantile (which is $0).
+- A planted example with converter spend 1 to 100 split unevenly across arms gives the pooled
+  cap 1 + 0.95 × 99 = 95.05 in every arm; only the values above it change, each to exactly
+  95.05.
+- A hand calculation with y = [0, 1, 1, 2] and x = [1, 2, 3, 4] gives mean 1, variance 2/3,
+  covariance 1; one-row arms give NaN variance; winsorising with no converters raises an error.
