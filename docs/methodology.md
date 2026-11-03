@@ -285,7 +285,8 @@ var(Y_adj) = var(Y) − 2θ cov(X, Y) + θ² var(X). Reported next to it:
   sqrt(1 − ρ²).
 
 "Pooled" means the two arms being compared (mens and control for mens vs control, and so on).
-θ is the same for both arms, so the adjustment cannot create a difference between them.
+θ is the same for both arms, so the adjustment cannot create a difference between them. Pooling
+over the two compared arms, rather than all three, is recorded as Deviation D2 in the plan.
 
 **Assumptions.** X is measured before treatment, so the email cannot change it, and by
 randomisation mean(X) is the same in expectation in both arms. The adjustment therefore

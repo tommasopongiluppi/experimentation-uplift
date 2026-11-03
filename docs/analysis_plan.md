@@ -297,3 +297,21 @@ it was made before or after seeing the outcome results.
 - **Why.** The plan left these unspecified; fixing them before seeing results keeps them from
   being chosen by their outcome.
 
+
+### D2. CUPED θ pooled over the two arms of each comparison
+
+- **Date:** 2026-11-04. **Section:** §7. **Made after** outcomes were compared between arms:
+  the frequentist readout and the CUPED readout had both been run when this entry was written.
+- **What changed.** §7 says θ is "estimated on all customers pooled across arms", which can be
+  read as all three arms or as the two arms being compared. The implementation estimates θ, and
+  centres `history`, on the two arms of each comparison (mens and control for mens vs control,
+  and so on), so each comparison is a self-contained two-arm analysis.
+- **Why.** Each comparison uses only its own two arms everywhere else in the readout (Welch
+  differences, the Lin adjustment), and a two-arm θ keeps CUPED consistent with that: an
+  estimate for mens vs control does not depend on the womens arm. Either reading keeps the
+  estimate unbiased, since θ is shared by both arms and `history` is pre-treatment.
+- **Impact.** Practically none. Re-running CUPED with θ pooled over all three arms changes every
+  adjusted estimate by a negligible fraction of its standard error, and no interval, p-value
+  or conclusion changes materially. The choice could not have been made to favour a result,
+  because `history` correlates so weakly with every outcome that CUPED barely moves any
+  estimate under either reading.
