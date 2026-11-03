@@ -36,13 +36,32 @@ the treatment assignment (renamed to `arm` during cleaning); outcomes are never 
 | `history` | DOUBLE | pre-treatment | Actual dollar value spent in the past year. |
 | `mens` | INTEGER | pre-treatment | 1 if the customer bought men's merchandise in the past year, else 0. |
 | `womens` | INTEGER | pre-treatment | 1 if the customer bought women's merchandise in the past year, else 0. |
-| `zip_code` | VARCHAR | pre-treatment | Area type: `Urban`, `Surburban` (sic, spelled this way in the source), `Rural`. |
+| `zip_code` | VARCHAR | pre-treatment | Area type: `Urban`, `Surburban` (sic, spelled this way in the source; cleaned to `suburban`), `Rural`. |
 | `newbie` | INTEGER | pre-treatment | 1 if the customer is new in the past twelve months, else 0. |
 | `channel` | VARCHAR | pre-treatment | Channels used to purchase in the past year: `Phone`, `Web`, `Multichannel`. |
 | `segment` | VARCHAR | assignment | Randomised treatment: `Mens E-Mail`, `Womens E-Mail`, `No E-Mail`. Renamed to `arm` (`mens`, `womens`, `control`) during cleaning. |
 | `visit` | INTEGER | outcome | 1 if the customer visited the website in the following two weeks, else 0. |
 | `conversion` | INTEGER | outcome | 1 if the customer purchased in the following two weeks, else 0. |
 | `spend` | DOUBLE | outcome | Dollars spent in the following two weeks (0 for non-buyers). |
+
+## Validation and cleaning
+
+`python -m abkit.pipeline validate` checks the raw table and writes `reports/validation.json` and
+`reports/validation.md` (all counts and quantiles live there). If no critical check fails it builds
+the table `customers` in `data/hillstrom.duckdb` and `data/processed/customers.parquet`:
+
+- `segment` is renamed to `arm` with values `mens`, `womens`, `control` (`config.RAW_ARM_MAP`).
+- Categorical values are recoded to lower_snake_case (`config.CATEGORY_MAPS`); `history_segment`
+  becomes `usd_0_100` ... `usd_1000_plus`, with bands that include the lower bound and exclude
+  the upper bound, as in the source.
+- Known misspellings are fixed and listed in the report (`config.LABEL_MISSPELLINGS`).
+- Every row is kept: exact duplicate rows are counted but not dropped (no customer ID, coarse
+  columns), and no outliers are removed or capped. Outlier handling is decided in the analysis
+  plan.
+
+Two features of the data the analysis must account for (see the report for the counts): a large
+point mass of `history` at its minimum value, which explains most duplicate rows, and a heap of
+converter `spend` at its maximum, consistent with spend being capped in the source.
 
 ## Known limitations
 

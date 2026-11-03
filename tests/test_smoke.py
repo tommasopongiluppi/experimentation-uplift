@@ -1,6 +1,6 @@
 import abkit
 from abkit import config
-from abkit.pipeline import main
+from abkit.pipeline import STEPS, build_parser
 
 
 def test_version():
@@ -21,5 +21,8 @@ def test_budget():
     assert config.BUDGET == 10_000
 
 
-def test_pipeline_run_all():
-    assert main(["run-all"]) == 0
+def test_pipeline_commands():
+    parser = build_parser()
+    for command in ("data", "validate", "run-all"):
+        assert parser.parse_args([command]).command == command
+    assert list(STEPS) == ["data", "validate"]

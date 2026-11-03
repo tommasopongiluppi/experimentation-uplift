@@ -51,6 +51,40 @@ PRE_TREATMENT_COLS: tuple[str, ...] = (
     "channel",
 )
 OUTCOME_COLS: tuple[str, ...] = ("visit", "conversion", "spend")
+BINARY_COLS: tuple[str, ...] = ("mens", "womens", "newbie", "visit", "conversion")
+CATEGORICAL_COLS: tuple[str, ...] = ("history_segment", "zip_code", "channel", RAW_ARM_COL)
+
+# Cleaning: canonical raw label -> lower_snake_case value, per categorical column
+CATEGORY_MAPS: dict[str, dict[str, str]] = {
+    "history_segment": {
+        "1) $0 - $100": "usd_0_100",
+        "2) $100 - $200": "usd_100_200",
+        "3) $200 - $350": "usd_200_350",
+        "4) $350 - $500": "usd_350_500",
+        "5) $500 - $750": "usd_500_750",
+        "6) $750 - $1,000": "usd_750_1000",
+        "7) $1,000 +": "usd_1000_plus",
+    },
+    "zip_code": {"Urban": "urban", "Suburban": "suburban", "Rural": "rural"},
+    "channel": {"Phone": "phone", "Web": "web", "Multichannel": "multichannel"},
+    RAW_ARM_COL: RAW_ARM_MAP,
+}
+# Known misspellings in the source file -> canonical raw label
+LABEL_MISSPELLINGS: dict[str, dict[str, str]] = {
+    "zip_code": {"Surburban": "Suburban"},
+}
+# history_segment dollar bands, lower bound inclusive and upper bound exclusive (as in the data)
+HISTORY_BANDS: tuple[tuple[float, float, str], ...] = (
+    (0.0, 100.0, "usd_0_100"),
+    (100.0, 200.0, "usd_100_200"),
+    (200.0, 350.0, "usd_200_350"),
+    (350.0, 500.0, "usd_350_500"),
+    (500.0, 750.0, "usd_500_750"),
+    (750.0, 1000.0, "usd_750_1000"),
+    (1000.0, float("inf"), "usd_1000_plus"),
+)
+# Population: customers who purchased in the last 12 months, so recency should lie in [1, 12]
+RECENCY_RANGE: tuple[int, int] = (1, 12)
 
 # Decision settings
 ALPHA: float = 0.05

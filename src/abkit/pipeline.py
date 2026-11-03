@@ -3,8 +3,39 @@
 import argparse
 import logging
 import sys
+from collections.abc import Callable
+
+from abkit import config
+from abkit.data import download_raw, load_to_duckdb
+from abkit.validate import run_validation
 
 logger = logging.getLogger(__name__)
+
+
+def run_data() -> None:
+    """Download (or verify) the raw file and load it into DuckDB."""
+    load_to_duckdb(download_raw())
+
+
+def run_validate() -> None:
+    """Validate ``raw_customers``, write the reports and build ``customers``.
+
+    Raises
+    ------
+    abkit.validate.ValidationError
+        If any critical check fails.
+    """
+    run_validation()
+
+
+def run_all() -> None:
+    """Run every pipeline stage end to end."""
+    for name, step in STEPS.items():
+        logger.info("Running step: %s", name)
+        step()
+
+
+STEPS: dict[str, Callable[[], None]] = {"data": run_data, "validate": run_validate}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -13,17 +44,14 @@ def build_parser() -> argparse.ArgumentParser:
     Returns
     -------
     argparse.ArgumentParser
-        Parser with one subcommand per pipeline stage.
+        Parser with one subcommand per pipeline stage plus ``run-all``.
     """
     parser = argparse.ArgumentParser(prog="abkit", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("data", help="Download or verify the raw file and load it into DuckDB.")
+    sub.add_parser("validate", help="Validate the raw table and build the cleaned table.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
-
-
-def run_all() -> None:
-    """Run every pipeline stage end to end."""
-    logger.info("No pipeline stages implemented yet.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,8 +71,11 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
     args = build_parser().parse_args(argv)
+    config.ensure_dirs()
     if args.command == "run-all":
         run_all()
+    else:
+        STEPS[args.command]()
     return 0
 
 

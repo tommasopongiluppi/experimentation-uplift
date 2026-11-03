@@ -115,7 +115,9 @@ def make_fixture(
     return pd.DataFrame(
         {
             "recency": rng.integers(1, 13, size=n),
-            "history_segment": pd.cut(history, HISTORY_BINS, labels=HISTORY_LABELS).astype(str),
+            "history_segment": pd.cut(
+                history, HISTORY_BINS, labels=HISTORY_LABELS, right=False
+            ).astype(str),
             "history": history,
             "mens": (purchase_type != 1).astype(int),
             "womens": (purchase_type != 0).astype(int),

@@ -1,0 +1,362 @@
+{
+  "table": "raw_customers",
+  "n_rows": 64000,
+  "summary": {
+    "n_checks": 24,
+    "n_passed": 22,
+    "n_failed": 2,
+    "critical_failures": []
+  },
+  "checks": [
+    {
+      "name": "schema.columns_and_types",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "customer_id": "INTEGER",
+        "recency": "INTEGER",
+        "history_segment": "VARCHAR",
+        "history": "DOUBLE",
+        "mens": "INTEGER",
+        "womens": "INTEGER",
+        "zip_code": "VARCHAR",
+        "newbie": "INTEGER",
+        "channel": "VARCHAR",
+        "segment": "VARCHAR",
+        "visit": "INTEGER",
+        "conversion": "INTEGER",
+        "spend": "DOUBLE"
+      },
+      "expected": "exactly these columns and types: {'customer_id': 'INTEGER', 'recency': 'INTEGER', 'history_segment': 'VARCHAR', 'history': 'DOUBLE', 'mens': 'INTEGER', 'womens': 'INTEGER', 'zip_code': 'VARCHAR', 'newbie': 'INTEGER', 'channel': 'VARCHAR', 'segment': 'VARCHAR', 'visit': 'INTEGER', 'conversion': 'INTEGER', 'spend': 'DOUBLE'}"
+    },
+    {
+      "name": "schema.row_count",
+      "severity": "critical",
+      "passed": true,
+      "observed": 64000,
+      "expected": "64000 rows"
+    },
+    {
+      "name": "missing_values",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "customer_id": 0,
+        "recency": 0,
+        "history_segment": 0,
+        "history": 0,
+        "mens": 0,
+        "womens": 0,
+        "zip_code": 0,
+        "newbie": 0,
+        "channel": 0,
+        "segment": 0,
+        "visit": 0,
+        "conversion": 0,
+        "spend": 0
+      },
+      "expected": "no NULL or blank values in any column"
+    },
+    {
+      "name": "range.recency",
+      "severity": "warning",
+      "passed": true,
+      "observed": {
+        "min": 1,
+        "max": 12,
+        "n_distinct": 12
+      },
+      "expected": "whole months in [1, 12] (population: purchased in the last 12 months)"
+    },
+    {
+      "name": "range.history",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "min": 29.99,
+        "max": 3345.93,
+        "n_negative": 0
+      },
+      "expected": "history >= 0"
+    },
+    {
+      "name": "range.spend",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "min": 0.0,
+        "max": 499.0,
+        "n_negative": 0
+      },
+      "expected": "spend >= 0"
+    },
+    {
+      "name": "binary.mens",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "distinct": [
+          0,
+          1
+        ],
+        "n_invalid": 0
+      },
+      "expected": "mens in {0, 1}"
+    },
+    {
+      "name": "binary.womens",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "distinct": [
+          0,
+          1
+        ],
+        "n_invalid": 0
+      },
+      "expected": "womens in {0, 1}"
+    },
+    {
+      "name": "binary.newbie",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "distinct": [
+          0,
+          1
+        ],
+        "n_invalid": 0
+      },
+      "expected": "newbie in {0, 1}"
+    },
+    {
+      "name": "binary.visit",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "distinct": [
+          0,
+          1
+        ],
+        "n_invalid": 0
+      },
+      "expected": "visit in {0, 1}"
+    },
+    {
+      "name": "binary.conversion",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "distinct": [
+          0,
+          1
+        ],
+        "n_invalid": 0
+      },
+      "expected": "conversion in {0, 1}"
+    },
+    {
+      "name": "categories.history_segment.known",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "unmapped_labels": {}
+      },
+      "expected": "every label is one of ['1) $0 - $100', '2) $100 - $200', '3) $200 - $350', '4) $350 - $500', '5) $500 - $750', '6) $750 - $1,000', '7) $1,000 +'] or a known fixable variant"
+    },
+    {
+      "name": "categories.history_segment.canonical",
+      "severity": "warning",
+      "passed": true,
+      "observed": {
+        "labels_fixed": {}
+      },
+      "expected": "every label is already spelled canonically (no fixes needed)"
+    },
+    {
+      "name": "categories.zip_code.known",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "unmapped_labels": {}
+      },
+      "expected": "every label is one of ['Urban', 'Suburban', 'Rural'] or a known fixable variant"
+    },
+    {
+      "name": "categories.zip_code.canonical",
+      "severity": "warning",
+      "passed": false,
+      "observed": {
+        "labels_fixed": {
+          "Surburban": "Suburban"
+        }
+      },
+      "expected": "every label is already spelled canonically (no fixes needed)"
+    },
+    {
+      "name": "categories.channel.known",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "unmapped_labels": {}
+      },
+      "expected": "every label is one of ['Phone', 'Web', 'Multichannel'] or a known fixable variant"
+    },
+    {
+      "name": "categories.channel.canonical",
+      "severity": "warning",
+      "passed": true,
+      "observed": {
+        "labels_fixed": {}
+      },
+      "expected": "every label is already spelled canonically (no fixes needed)"
+    },
+    {
+      "name": "categories.segment.known",
+      "severity": "critical",
+      "passed": true,
+      "observed": {
+        "unmapped_labels": {}
+      },
+      "expected": "every label is one of ['Mens E-Mail', 'Womens E-Mail', 'No E-Mail'] or a known fixable variant"
+    },
+    {
+      "name": "categories.segment.canonical",
+      "severity": "warning",
+      "passed": true,
+      "observed": {
+        "labels_fixed": {}
+      },
+      "expected": "every label is already spelled canonically (no fixes needed)"
+    },
+    {
+      "name": "logic.conversion_implies_visit",
+      "severity": "warning",
+      "passed": true,
+      "observed": {
+        "conversion_without_visit": 0
+      },
+      "expected": "every converter also visited"
+    },
+    {
+      "name": "logic.spend_iff_conversion",
+      "severity": "warning",
+      "passed": true,
+      "observed": {
+        "spend_without_conversion": 0,
+        "conversion_without_spend": 0
+      },
+      "expected": "spend > 0 exactly when conversion = 1"
+    },
+    {
+      "name": "logic.history_segment_matches_history",
+      "severity": "warning",
+      "passed": true,
+      "observed": {
+        "mismatches": 0
+      },
+      "expected": "history_segment is the dollar band of history (lower bound inclusive)"
+    },
+    {
+      "name": "logic.mens_or_womens_history",
+      "severity": "warning",
+      "passed": true,
+      "observed": {
+        "mens_0_and_womens_0": 0
+      },
+      "expected": "every customer bought men's or women's merchandise in the past year"
+    },
+    {
+      "name": "duplicates.exact_rows",
+      "severity": "warning",
+      "passed": false,
+      "observed": {
+        "rows_in_duplicate_groups": 7634,
+        "extra_copies": 6562
+      },
+      "expected": "no exact duplicate rows (duplicates are kept either way)"
+    }
+  ],
+  "categories": {
+    "history_segment": {
+      "1) $0 - $100": 22970,
+      "2) $100 - $200": 14254,
+      "3) $200 - $350": 12289,
+      "4) $350 - $500": 6409,
+      "5) $500 - $750": 4911,
+      "6) $750 - $1,000": 1859,
+      "7) $1,000 +": 1308
+    },
+    "zip_code": {
+      "Rural": 9563,
+      "Surburban": 28776,
+      "Urban": 25661
+    },
+    "channel": {
+      "Multichannel": 7762,
+      "Phone": 28021,
+      "Web": 28217
+    },
+    "segment": {
+      "Mens E-Mail": 21307,
+      "No E-Mail": 21306,
+      "Womens E-Mail": 21387
+    }
+  },
+  "label_fixes": [
+    {
+      "column": "zip_code",
+      "raw": "Surburban",
+      "canonical": "Suburban",
+      "clean": "suburban",
+      "reason": "misspelling",
+      "rows": 28776
+    }
+  ],
+  "duplicates": {
+    "rows_in_duplicate_groups": 7634,
+    "extra_copies": 6562,
+    "dropped": 0,
+    "most_common_history": 29.99,
+    "rows_in_duplicate_groups_at_most_common_history": 7570,
+    "note": "Exact duplicate rows are counted but kept. The file has no customer identifier and its columns are coarse (several are binary or binned), so two different customers can have identical rows; dropping them would remove real customers and bias the arm sizes."
+  },
+  "distributions": {
+    "history_quantiles": {
+      "p50": 158.11,
+      "p90": 561.194,
+      "p99": 1218.664300000001,
+      "p99.9": 1889.201129999996,
+      "max": 3345.93
+    },
+    "spend_quantiles_converters": {
+      "p50": 80.795,
+      "p90": 256.4880000000001,
+      "p99": 499.0,
+      "p99.9": 499.0,
+      "max": 499.0
+    },
+    "n_converters": 578,
+    "share_zero_spend": 0.99096875,
+    "history_most_common": {
+      "value": 29.99,
+      "count": 7947
+    },
+    "spend_converters_most_common": [
+      {
+        "value": 29.99,
+        "count": 136
+      },
+      {
+        "value": 499.0,
+        "count": 12
+      },
+      {
+        "value": 362.2,
+        "count": 2
+      }
+    ],
+    "n_converters_at_max_spend": 12,
+    "quantile_method": "numpy linear interpolation"
+  }
+}
