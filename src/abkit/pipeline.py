@@ -8,6 +8,7 @@ from collections.abc import Callable
 from abkit import config
 from abkit.data import download_raw, load_to_duckdb
 from abkit.eda import run_checks
+from abkit.power import run_power
 from abkit.readout import run_cuped, run_frequentist
 from abkit.validate import run_validation
 
@@ -63,6 +64,11 @@ def run_adjusted() -> None:
     run_cuped()
 
 
+def run_design() -> None:
+    """Run the MDE, sample-size and power-curve calculations and write their outputs."""
+    run_power()
+
+
 def run_all() -> None:
     """Run every pipeline stage end to end."""
     for name, step in STEPS.items():
@@ -76,6 +82,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "checks": run_validity,
     "frequentist": run_readout,
     "cuped": run_adjusted,
+    "power": run_design,
 }
 
 
@@ -94,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("checks", help="SRM and balance checks plus pooled EDA.")
     sub.add_parser("frequentist", help="Frequentist readout of every comparison and metric.")
     sub.add_parser("cuped", help="CUPED and Lin regression-adjusted estimates.")
+    sub.add_parser("power", help="Minimum detectable effects, sample sizes and power curves.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
 

@@ -421,3 +421,98 @@ def plot_adjusted_intervals(table: pd.DataFrame, path: Path) -> Path:
         )
         fig.legend(loc="outside lower center", ncol=len(ESTIMATOR_STYLES))
         return save(fig, path)
+
+
+# Power-curve lines: colour encodes the level (slot 1 blue for alpha as pre-registered, grey
+# for the Holm level), line style encodes CUPED (solid without, dashed with).
+POWER_LEVEL_COLORS: dict[str, str] = {"unadjusted": SERIES, "holm": TEXT_SECONDARY}
+POWER_METRIC_LABELS: dict[str, str] = {
+    "spend": "Spend per customer",
+    "conversion": "Conversion rate",
+    "visit": "Visit rate",
+}
+
+
+def plot_power_curve(curve: pd.DataFrame, mdes: pd.DataFrame, path: Path) -> Path:
+    """Power against relative lift at the actual sample size, one panel per metric.
+
+    Parameters
+    ----------
+    curve : pandas.DataFrame
+        Output of :func:`abkit.power.power_curve_table`.
+    mdes : pandas.DataFrame
+        Output of :func:`abkit.power.mde_table`; the unadjusted, non-CUPED MDE of each metric
+        is marked on its panel.
+    path : Path
+        Output PNG path.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    metrics = list(dict.fromkeys(curve["metric"]))
+    levels = list(dict.fromkeys(zip(curve["alpha_label"], curve["alpha"], strict=True)))
+    target = float(mdes["power"].iloc[0])
+    with styled():
+        fig = Figure(figsize=(10.0, 3.6), layout="constrained")
+        axes = fig.subplots(1, len(metrics), squeeze=False).ravel()
+        for ax, metric in zip(axes, metrics, strict=True):
+            part = curve[curve["metric"] == metric]
+            for label, alpha in levels:
+                for with_cuped in (False, True):
+                    line = part[(part["alpha_label"] == label) & (part["cuped"] == with_cuped)]
+                    ax.plot(
+                        100 * line["relative_lift"],
+                        line["power"],
+                        color=POWER_LEVEL_COLORS[label],
+                        linestyle="--" if with_cuped else "-",
+                        linewidth=1.8,
+                        label=(
+                            f"alpha = {alpha:g}{' (Holm)' if label == 'holm' else ''}"
+                            f"{', with CUPED' if with_cuped else ''}"
+                        )
+                        if ax is axes[0]
+                        else None,
+                    )
+            ax.axhline(target, color=TEXT_SECONDARY, linestyle=":", linewidth=1.0)
+            ref = mdes[(mdes["metric"] == metric) & (mdes["alpha_label"] == "unadjusted")]
+            ref = ref[~ref["cuped"]].iloc[0]
+            x_mde = 100 * float(ref["mde_relative"])
+            ax.axvline(x_mde, color=SERIES, linestyle=":", linewidth=1.0)
+            ax.text(
+                x_mde,
+                0.03,
+                f" MDE {x_mde:.0f}%",
+                fontsize=9,
+                color=TEXT_SECONDARY,
+                va="bottom",
+            )
+            ax.set_ylim(0, 1.0)
+            ax.set_xlim(0, 100 * float(part["relative_lift"].max()))
+            ax.xaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+            ax.set_title(POWER_METRIC_LABELS.get(metric, metric), fontsize=11)
+            ax.set_xlabel("True relative lift vs control")
+        axes[0].set_ylabel(f"Power (dotted: {target:.0%} target)")
+        n = int(mdes["n_per_arm"].iloc[0])
+        reduction = float(mdes["variance_reduction"].max())
+        fig.suptitle(
+            f"Power by true relative lift at {n:,} customers per arm",
+            x=0.01,
+            ha="left",
+            fontweight="bold",
+            fontsize=13,
+        )
+        # The note is a figure-level artist, so reserve a band under the title for it.
+        fig.get_layout_engine().set(rect=(0, 0, 1, 0.9))
+        fig.text(
+            0.01,
+            0.9,
+            f"CUPED on history removes at most {reduction:.1%} of the variance, "
+            "so the dashed curves sit on the solid ones.",
+            fontsize=10,
+            color=TEXT_SECONDARY,
+            va="bottom",
+        )
+        fig.legend(loc="outside lower center", ncol=2)
+        return save(fig, path)

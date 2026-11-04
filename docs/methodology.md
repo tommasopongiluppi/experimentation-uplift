@@ -382,3 +382,61 @@ These estimates sit next to the headline estimate, never in its place (plan §6)
 
 **How it is tested.** On the fixture: one row per comparison and metric, raw differences and ρ
 that match pandas, and the table, figure and results section are written.
+
+## Minimum detectable effect, sample size and power
+
+`abkit.power.mde`, `abkit.power.sample_size`, `abkit.power.power_for_effect`; readout
+`abkit.power.run_power`, outputs `reports/tables/power.csv` (MDE at the actual sample size),
+`reports/tables/power_sample_size.csv`, `reports/tables/power_curve.csv`, the `power` section of
+`reports/results.json` and `reports/figures/power_curve.png`.
+
+**What it does.** Says what the experiment could detect, and what a future one would need,
+without looking at the observed effects. For spend, conversion and visit it reports the minimum
+detectable effect (MDE) at the actual size of the arms, at the pre-registered level (alpha = 0.05)
+and at the level a primary-family test must meet under Holm (alpha / 2 = 0.025), with and without
+CUPED; the customers per arm needed to detect a 5%, 10% and 20% relative lift; and the power
+curve, power against the true relative lift, at the actual sample size.
+
+**Formula.** For a difference in means or rates with a common variance σ² per customer, n_t and
+n_c customers per arm and a two-sided test at level alpha with target power 1 − β:
+- se = sqrt(σ² (1 − r) (1 / n_t + 1 / n_c)), where r is the fraction of the variance CUPED
+  removes (0 without CUPED, about ρ² with it);
+- MDE = (z_{1−alpha/2} + z_{1−β}) · se, and the relative MDE is MDE / baseline mean;
+- customers per arm for a lift δ with equal allocation: n = 2 (z_{1−alpha/2} + z_{1−β})² σ² (1 − r)
+  / δ², rounded up;
+- power at a true difference δ: Φ(δ / se − z_{1−alpha/2}) + Φ(−δ / se − z_{1−alpha/2}). The
+  second term, rejecting in the wrong direction, is what the closed-form MDE ignores; it is about
+  1e-6 at 80% power and alpha = 0.05, so the curve passes through the MDE at the target power.
+At 80% power and alpha = 0.05 the MDE is 2.80 standard errors; at the Holm level it is 3.08.
+For a rate p, σ² = p (1 − p). Inputs come from the metric layer: the control arm's mean and
+unbiased variance (for a rate, p (1 − p) up to n / (n − 1)); the sample size per arm is the
+smallest arm; the CUPED variance reduction is the one achieved on the metric, averaged over the
+two email-vs-control comparisons.
+
+**Assumptions.** The normal approximation for the difference in means, the same as the readout's
+tests. The variance is taken as common to both arms and equal to the control arm's. For a
+zero-inflated outcome like spend the variance grows with the mean, so the treatment arm's variance
+under a real lift is larger than the control's, and the MDE and sample sizes for spend are
+optimistic by that amount. The MDE uses the control arm's observed baseline and variance, which is
+a legitimate use of the data: they describe the noise, not the effect.
+
+**Why "observed power" is not computed.** Post-hoc or "observed" power plugs the observed effect
+into the power formula as if it were the true effect. It adds nothing: it is a one-to-one
+transformation of the p-value (a p-value of 0.05 always maps to an observed power of about 50%,
+whatever the experiment), so a non-significant result always shows "low power" and a significant
+one "high power". It is also biased, because the observed effect is a noisy estimate that, when
+significant, overstates the true effect (the winner's curse). Power is a property of a design
+against a hypothesised effect, so this project computes it only for pre-specified effect sizes:
+the MDE at the actual sample size, the sample sizes for 5%, 10% and 20% lifts, and the full
+curve against the true lift. None of these use the observed difference between arms.
+
+**How it is tested.** The MDE matches the hand formula with scipy's normal quantiles to 1e-12,
+sample size inverts it to 1e-9, and CUPED scales the MDE by sqrt(1 − r). Against
+`statsmodels.stats.power`: the power function matches `NormalIndPower.power` and
+`TTestIndPower.power` (normal and non-central t) to 1e-6, and `NormalIndPower.power` evaluated at
+our MDE and at our exact sample size returns the target power to 1e-6 (the solver's own output
+is compared at its 1e-5 root-finding tolerance). A slow Monte Carlo check plants the MDE as the
+true effect and confirms the Welch test, the two-proportion z-test and CUPED each reject in 80%
+of 4,000 simulated experiments, within three Monte Carlo standard errors. On the fixture, the
+tables have one row per metric, level, CUPED flag (and lift), the design inputs equal the
+control arm's pandas mean and variance, and every output is written.
