@@ -6297,6 +6297,765 @@
       }
     ]
   },
+  "seed_robustness": {
+    "label": "seed_robustness",
+    "plan_section": "11",
+    "outcome": "visit",
+    "learners": [
+      "s_learner",
+      "t_learner",
+      "x_learner",
+      "response_model"
+    ],
+    "seed_0": "the committed run, read from the uplift-model stage's scores parquet",
+    "other_seeds": "child generators spawned from config.SEEDS['uplift'] = 20080324",
+    "budget": 10000,
+    "ab_winner": "mens",
+    "policy_metric": "uplift_policy_incremental_visits",
+    "note": "Bootstrap intervals elsewhere hold the folds fixed; the spread across seeds shows the fold-assignment and model-seed variability they leave out.",
+    "n_seeds": 10,
+    "spread": [
+      {
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "median": 0.007144468275318423,
+        "min": 0.004348942355415664,
+        "max": 0.012909051669586087,
+        "n_seeds": 10,
+        "seed_0": 0.008267336310300534
+      },
+      {
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "median": 0.006341672195039559,
+        "min": -0.0007062594048799824,
+        "max": 0.01570514699397971,
+        "n_seeds": 10,
+        "seed_0": 0.010011754343247524
+      },
+      {
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "median": 3.0511724601673144e-05,
+        "min": -0.0034837636365358028,
+        "max": 0.005939121983670777,
+        "n_seeds": 10,
+        "seed_0": -0.0021313291763727592
+      },
+      {
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "median": 0.02259675818942039,
+        "min": 0.019848898183389453,
+        "max": 0.02656210700822106,
+        "n_seeds": 10,
+        "seed_0": 0.022599952144606833
+      },
+      {
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "median": 0.059172031215665985,
+        "min": 0.053369092819706934,
+        "max": 0.06500598552154804,
+        "n_seeds": 10,
+        "seed_0": 0.060256286814473245
+      },
+      {
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "median": 0.053301364204923304,
+        "min": 0.04747124897939106,
+        "max": 0.061590176937186755,
+        "n_seeds": 10,
+        "seed_0": 0.051118095563283936
+      },
+      {
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "median": 0.06155617243392019,
+        "min": 0.054267907756772774,
+        "max": 0.06947060381174296,
+        "n_seeds": 10,
+        "seed_0": 0.06258388770072605
+      },
+      {
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "median": 0.03607079413260378,
+        "min": 0.03200838267066752,
+        "max": 0.03970208514668348,
+        "n_seeds": 10,
+        "seed_0": 0.03506559984726067
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "median": 1026.0000000000002,
+        "min": 852.0000000000003,
+        "max": 1233.0000000000005,
+        "n_seeds": 10,
+        "seed_0": 852.0000000000003
+      }
+    ],
+    "x_beats_response_model_womens": {
+      "count": 10,
+      "out_of": 10,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "table": "tables/uplift_seed_robustness.csv",
+    "rows": [
+      {
+        "seed": 0,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.008267336310300534
+      },
+      {
+        "seed": 0,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.010011754343247524
+      },
+      {
+        "seed": 0,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": -0.0021313291763727592
+      },
+      {
+        "seed": 0,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.022599952144606833
+      },
+      {
+        "seed": 0,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.060256286814473245
+      },
+      {
+        "seed": 0,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.051118095563283936
+      },
+      {
+        "seed": 0,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.06258388770072605
+      },
+      {
+        "seed": 0,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.03506559984726067
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 852.0000000000003
+      },
+      {
+        "seed": 1,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.004348942355415664
+      },
+      {
+        "seed": 1,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.0028219447436812783
+      },
+      {
+        "seed": 1,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": -0.0034837636365358028
+      },
+      {
+        "seed": 1,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.02259356423423395
+      },
+      {
+        "seed": 1,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.05419348872801599
+      },
+      {
+        "seed": 1,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.053881670063100406
+      },
+      {
+        "seed": 1,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.05436295044372883
+      },
+      {
+        "seed": 1,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.03731036905269953
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 885.0000000000007
+      },
+      {
+        "seed": 2,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.00954230531730095
+      },
+      {
+        "seed": 2,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.0068681218179628325
+      },
+      {
+        "seed": 2,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.0015336391969036905
+      },
+      {
+        "seed": 2,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.02357153218528224
+      },
+      {
+        "seed": 2,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.05991783996352671
+      },
+      {
+        "seed": 2,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.04747124897939106
+      },
+      {
+        "seed": 2,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.054267907756772774
+      },
+      {
+        "seed": 2,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.033784902583887715
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 1164.0000000000007
+      },
+      {
+        "seed": 3,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.007488383307812458
+      },
+      {
+        "seed": 3,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.006526436392320906
+      },
+      {
+        "seed": 3,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": -0.0019416277563827319
+      },
+      {
+        "seed": 3,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.021030542688274124
+      },
+      {
+        "seed": 3,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.05782396385688269
+      },
+      {
+        "seed": 3,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.05700277279368507
+      },
+      {
+        "seed": 3,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.06404962617438653
+      },
+      {
+        "seed": 3,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.039049538914793236
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 1233.0000000000005
+      },
+      {
+        "seed": 4,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.006119422420057036
+      },
+      {
+        "seed": 4,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.006156907997758211
+      },
+      {
+        "seed": 4,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": -0.0008505088811958124
+      },
+      {
+        "seed": 4,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.026441745922393574
+      },
+      {
+        "seed": 4,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.053369092819706934
+      },
+      {
+        "seed": 4,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.04943421375893206
+      },
+      {
+        "seed": 4,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.05568832182454567
+      },
+      {
+        "seed": 4,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.03862091147239681
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 1044.0000000000005
+      },
+      {
+        "seed": 5,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.006190032893559817
+      },
+      {
+        "seed": 5,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": -9.815782272250831e-05
+      },
+      {
+        "seed": 5,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.005939121983670777
+      },
+      {
+        "seed": 5,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.020284512088890087
+      },
+      {
+        "seed": 5,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.0602765996540456
+      },
+      {
+        "seed": 5,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.05540428179125638
+      },
+      {
+        "seed": 5,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.06276144662769671
+      },
+      {
+        "seed": 5,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.0340748996529363
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 1065.0000000000005
+      },
+      {
+        "seed": 6,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.005920358277896877
+      },
+      {
+        "seed": 6,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.0025342688684650977
+      },
+      {
+        "seed": 6,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.004121438959977891
+      },
+      {
+        "seed": 6,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.019848898183389453
+      },
+      {
+        "seed": 6,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.05842622246780526
+      },
+      {
+        "seed": 6,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.061590176937186755
+      },
+      {
+        "seed": 6,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.06343876516791283
+      },
+      {
+        "seed": 6,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.03970208514668348
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 987.0000000000001
+      },
+      {
+        "seed": 7,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.006800553242824387
+      },
+      {
+        "seed": 7,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": -0.0007062594048799824
+      },
+      {
+        "seed": 7,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": -0.0005882959081414343
+      },
+      {
+        "seed": 7,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.023415853821072894
+      },
+      {
+        "seed": 7,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.06500598552154804
+      },
+      {
+        "seed": 7,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.05446602936894691
+      },
+      {
+        "seed": 7,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.06947060381174296
+      },
+      {
+        "seed": 7,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.03707598841794688
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 963.0000000000001
+      },
+      {
+        "seed": 8,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.010208432494980239
+      },
+      {
+        "seed": 8,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.01570514699397971
+      },
+      {
+        "seed": 8,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.0048355006490070985
+      },
+      {
+        "seed": 8,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.02656210700822106
+      },
+      {
+        "seed": 8,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.060776997674609715
+      },
+      {
+        "seed": 8,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.05272105834674621
+      },
+      {
+        "seed": 8,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.06052845716711433
+      },
+      {
+        "seed": 8,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.03200838267066752
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 1062.0000000000002
+      },
+      {
+        "seed": 9,
+        "arm": "mens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.012909051669586087
+      },
+      {
+        "seed": 9,
+        "arm": "mens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.010616343643219645
+      },
+      {
+        "seed": 9,
+        "arm": "mens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.0006493193573447806
+      },
+      {
+        "seed": 9,
+        "arm": "mens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.021567045080026263
+      },
+      {
+        "seed": 9,
+        "arm": "womens",
+        "ranking": "s_learner",
+        "metric": "qini_normalised",
+        "value": 0.055732646413179
+      },
+      {
+        "seed": 9,
+        "arm": "womens",
+        "ranking": "t_learner",
+        "metric": "qini_normalised",
+        "value": 0.048680721964268675
+      },
+      {
+        "seed": 9,
+        "arm": "womens",
+        "ranking": "x_learner",
+        "metric": "qini_normalised",
+        "value": 0.055496663155511196
+      },
+      {
+        "seed": 9,
+        "arm": "womens",
+        "ranking": "response_model",
+        "metric": "qini_normalised",
+        "value": 0.03394662048275492
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_visits",
+        "value": 1008.0
+      }
+    ]
+  },
   "segments": {
     "label": "exploratory",
     "plan_section": "10",

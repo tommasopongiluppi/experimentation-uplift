@@ -1218,3 +1218,44 @@ not here.
   close, with random targeting a little below the two models; on spend the uplift ranking
   is nominally ahead at small budgets, within noise. The curves meet at 64,000 only up to
   the choice of email, because each ranking sends its own choice.
+
+## Repeated cross-fitting over fold seeds
+
+**What it does.** Every bootstrap interval in the uplift-model and policy sections holds
+the fold assignment fixed: it resamples customers with their out-of-fold scores as given.
+That leaves out the variability from which customers land in which fold and from the base
+models' own seeds. Chernozhukov et al. (2018) recommend repeating cross-fitting over
+several random splits and reporting the spread (or the median) of the resulting
+estimates. This stage re-runs the cross-fitting for the primary outcome (visit) and both
+email pairs under ten fold seeds: seed 0 is the committed run, read from the scores the
+uplift-model stage wrote, so its rows reproduce the headline tables exactly; seeds 1 to 9
+are child generators spawned from the configured uplift seed. For each seed it records the
+normalised Qini coefficient of the S-, T- and X-learners and the response model on each
+pair, whether the X-learner beats the response model on the womens pair, and the uplift
+policy's incremental visits at the 10,000-email budget. The committed headline tables are
+left as they are; the spread is reported next to them in
+`reports/tables/uplift_seed_robustness.csv` and the `seed_robustness` section of
+`results.json`.
+
+**Tests.** The seed generators are deterministic, distinct and leave the parent stream
+untouched. The summary (median, min, max, win count) is checked on a toy table with a
+known answer. The stage runs end to end with a fast stand-in scorer, and (slow) with the
+real learners on the fixture.
+
+**What the repeated cross-fitting shows.** Read from `reports/tables/uplift_seed_robustness.csv`
+and the `seed_robustness` section of `results.json`.
+
+- On the womens pair the ranking of the learners is stable: the X-learner beats the
+  response model in every seed, and all three uplift learners stay well above it. The
+  choice of the X-learner for the policy does not hinge on the committed seed.
+- On the mens pair every uplift learner sits at zero in every seed, while the response
+  model keeps a small positive coefficient. The conclusion that the mens effect has no
+  detectable heterogeneity is not a seed artefact.
+- The uplift policy's incremental visits at the budget move across seeds by an amount
+  comparable to the width of the paired bootstrap interval, and the committed seed is at
+  the low end of the range. The bootstrap intervals therefore understate the total
+  uncertainty: fold-assignment and model-seed variability add about as much again. The
+  headline verdict is unchanged, in that no seed puts the uplift policy outside the
+  sampling uncertainty of the recency rule, but a reader should take the seed-to-seed
+  range as the honest spread of the policy's value and the median across seeds, not the
+  committed seed, as its central estimate.

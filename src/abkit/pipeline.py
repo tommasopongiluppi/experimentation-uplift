@@ -15,6 +15,7 @@ from abkit.segments import run_segments
 from abkit.sequential import run_sequential
 from abkit.uplift.models import run_uplift_models
 from abkit.uplift.policy import run_policy
+from abkit.uplift.robustness import run_seed_robustness
 from abkit.validate import run_validation
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,11 @@ def run_targeting() -> None:
     run_policy()
 
 
+def run_robustness() -> None:
+    """Repeat the visit cross-fitting over fold seeds and write the spread of the results."""
+    run_seed_robustness()
+
+
 def run_all() -> None:
     """Run every pipeline stage end to end."""
     for name, step in STEPS.items():
@@ -125,6 +131,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "segments": run_subgroups,
     "uplift": run_uplift,
     "policy": run_targeting,
+    "robustness": run_robustness,
 }
 
 
@@ -151,6 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("segments", help="Exploratory segment effects, interaction tests and BH.")
     sub.add_parser("uplift", help="Cross-fitted uplift learners and baselines with evaluation.")
     sub.add_parser("policy", help="Budgeted targeting policies, IPW values and the budget curve.")
+    sub.add_parser("robustness", help="Repeat the visit cross-fitting over fold seeds.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
 
