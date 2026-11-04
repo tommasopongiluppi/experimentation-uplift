@@ -779,3 +779,124 @@ reporting both costs nothing but adds the decision layer: the expected loss and 
 pre-registered headline for Q2 (plan §6), and the Bayesian one carries the decision rule for
 Q1 (plan §9). Where they agree, the README says so with both numbers; where they would not,
 the reason above is the explanation to give.
+
+## Sequential testing: peeking and its valid fixes (simulation)
+
+`abkit.sequential`; readout `abkit.sequential.run_sequential`, outputs
+`reports/tables/sequential.csv` (one row per scenario, metric and rule),
+`reports/tables/sequential_looks.csv` (A/A false positive rate against the number of looks),
+`reports/tables/sequential_by_day.csv` (cumulative rejection by day, and the single-look rate of
+the z-test on each day alone), `reports/tables/sequential_boundaries.csv`, the `sequential`
+section of `reports/results.json` and the figures `sequential_fpr_vs_looks.png`,
+`sequential_cumulative_rejection.png` and `sequential_boundaries.png`.
+
+**This is a simulation, not a re-analysis.** The real experiment is a single final snapshot and
+is read once (analysis plan §12). Everything in this section is generated data built on the
+control arm's baselines: its visit and conversion rates, and its spend values resampled with
+replacement. No decision about the real experiment is taken from it. The one place the real
+outcome data enters is the size of the planted effect in one A/B scenario, the observed visit
+lift of the better email, used only to say what the rules would do to an effect of that size.
+
+**The setting.** A stylised rollout: the campaign runs for 14 days, each day the same number of
+new customers joins each arm (the smallest real arm divided by 14, the remainder dropped), and
+the analyst looks at the cumulative results every day. Arm A is the control baseline, arm B the
+email. The A/A scenarios plant no effect and measure how often each rule declares a winner that
+does not exist; the A/B scenarios plant a visit lift and measure power and the stopping day.
+The looks curve repeats the A/A with K equally spaced looks over the same customers, for K from
+1 to 30. Visit is the headline metric; conversion and spend are run under A/A as well.
+
+**The rules compared**, each stopping at the first look where it rejects:
+1. *Fixed horizon*: one two-sided test at level alpha on day 14, the benchmark. For a rate it
+   is the pooled two-proportion z-test of the readout; for spend the Welch z-test.
+2. *Naive peeking*: the same test at the same level at every daily look.
+3. *Bayesian peeking*: Beta(1, 1) priors on each arm's rate; stop when P(p_B > p_A) leaves the
+   interval (0.05, 0.95). The probability is exact: a Gauss–Legendre quadrature of
+   ∫ f_B(x) F_A(x) dx, checked against the closed form of the Bayesian readout, and applied
+   through a boundary on counts (for each count in A, the smallest count in B that crosses the
+   threshold; the mirror rule handles the lower threshold). For spend the posterior of the mean
+   difference is the large-sample normal with a flat prior, so P(B > A) = Φ(z) and the rule is
+   |z| > 1.645, which is naive peeking at alpha = 0.10. The rate rules are numerically close to
+   that too: a flat prior adds nothing, and peeking at a posterior is peeking.
+4. *Pocock*: reject at look k when |Z_k| > c_P(K), the same boundary at every look.
+5. *O'Brien–Fleming*: reject when |Z_k| > c_B(K) sqrt(K / k): very strict early, 1.96-like at
+   the end.
+6. *mSPRT* (Johari, Pekelis and Walsh 2017): the mixture likelihood ratio of a normal estimate
+   d with variance V against a N(0, tau²) prior on the effect,
+   Λ = sqrt(V / (V + tau²)) exp(tau² d² / (2 V (V + tau²))), and the always-valid p-value
+   p_n = min over looks so far of min(1, 1 / Λ). Reject when p_n ≤ alpha. The p-value is valid
+   at every look and under any stopping rule because Λ is a non-negative martingale under the
+   null, so P(sup Λ ≥ 1 / alpha) ≤ alpha (Ville's inequality). V is the squared standard error
+   of the fixed-horizon test at that look.
+
+**Calibrating the group-sequential constants.** With equal increments, the z-statistics at
+K looks satisfy Z_k = S_k / sqrt(k) with S a cumulative sum of independent standard normals,
+the Brownian-motion correlation of a sequence of two-sample tests. The Pocock constant is the
+(1 − alpha) quantile of max_k |Z_k| and the O'Brien–Fleming final boundary is the (1 − alpha)
+quantile of max_k |S_k| / sqrt(K) (since |Z_k| > c sqrt(K / k) is |S_k| / sqrt(K) > c), both
+read off `n_paths` simulated null paths, with the Monte Carlo standard error of the quantile.
+There is no root finding: the constants are order statistics. They are calibrated for every K
+from 1 to 30; for K = 1 both reduce to the normal quantile 1.96.
+
+**The mSPRT mixing scale.** Tau is the standard deviation of the prior on the effect, and the
+test is most powerful against effects of about that size. It is set per metric to the metric's
+minimum detectable effect at 80% power and the full sample (`abkit.power.mde`, the project's own
+"plausible effect"), computed from the control arm's variance and the customers per arm. Half
+and double that tau are reported as a sensitivity; both move the A/A rate and the power only a
+little.
+
+**Monte Carlo error.** Every rate carries sqrt(p (1 − p) / runs) and every mean stopping day its
+standard error. The stopping day is reported with runs that never reject stopping at day 14,
+and separately among the runs that reject.
+
+**What the tables show.** Naive peeking turns the nominal 5% into a false positive rate several
+times larger with daily looks, and the rate keeps growing with the number of looks (it would
+tend to 1 with infinitely many looks). Bayesian peeking under a flat prior is worse, as the
+alpha = 0.10 equivalence predicts. Pocock, O'Brien–Fleming and mSPRT keep the A/A rate at or
+below 5% for every number of looks. They pay in different coins: Pocock gives up the most power
+at the horizon because its final boundary is far above 1.96; O'Brien–Fleming costs almost no
+power at day 14 but rarely stops early; mSPRT is conservative under the null (its rate is well
+under alpha) and has markedly lower power at the MDE than the fixed-horizon test, the price of
+a p-value that stays valid at every look. At the observed visit lift of the better email, an
+effect of several standard errors on the first day alone, every rule stops on day 1 or 2 with
+power 1, which is why that scenario says nothing about the rules and the MDE scenario was added.
+
+**Small samples at the early looks.** With one fourteenth of an arm arriving per day, the
+first daily look holds a handful of converters and spenders per arm, and the normal
+approximation behind the z-tests and the boundaries can fail there. The check, in
+`results.json` under `sequential.small_sample_check` and in the `single_look` rows of
+`sequential_by_day.csv`, is the fixed-horizon test applied once: at the full sample (K = 1) and
+at the first daily look alone. At the full sample all three metrics reject at the nominal rate
+within Monte Carlo error. At the first daily look visit is at the nominal rate; conversion is
+slightly below it, within about two Monte Carlo standard errors; spend is clearly below it: the
+Welch test on a zero-inflated, heavy-tailed outcome with a handful of positive values per arm is
+conservative, because a large spend inflates the variance estimate more than the mean. The
+single-look rate for spend climbs back to the nominal level within the first week. So the only
+deviation from 5% that is not peeking is a conservative one, at the earliest looks of spend
+(and marginally conversion), and it has the opposite sign to the peeking inflation. Its visible
+effect is on Pocock for spend, whose constant boundary gives the early looks weight: its A/A
+rate sits a little below 5%, and further below as the number of looks grows and the early looks
+get smaller. The inflation from naive and Bayesian peeking on conversion and spend is of the
+same size as on visit and is entirely peeking.
+
+**Assumptions.** Equal arm sizes and equal daily batches; customers arrive independently with
+the control arm's outcome distribution; the Z-statistics follow the Brownian-motion
+correlation (true asymptotically for any sum-based statistic, and the calibration test checks
+the constants against the published values for that structure); the mSPRT treats V as known.
+The variance for the planted visit effect is the treatment arm's own, so the fixed-horizon power
+at the MDE is slightly below 80%, the same optimism noted for the MDE itself.
+
+**How it is tested.** The fixed-horizon A/A false positive rate is within three Monte Carlo
+standard errors of 5%; the calibrated constants for K = 5 match the published values (Pocock
+2.413, O'Brien–Fleming 2.040; Jennison and Turnbull 2000, Table 2.1) within 0.02, and for K = 1
+both equal 1.96; Pocock, O'Brien–Fleming and mSPRT keep the A/A rate at or below 5% within
+Monte Carlo error; naive peeking with 14 looks is clearly above 5% (above 10%, beyond three
+standard errors). The quadrature matches the closed-form P(p_B > p_A) to 1e-8, the count
+boundary equals a brute-force search, and the Bayesian rule on simulated paths equals the
+cell-by-cell probabilities; the spend Bayesian rule equals naive peeking at alpha = 0.10 exactly.
+The mSPRT likelihood ratio matches the hand formula, its p-values are running minima in (0, 1],
+and the implied |z| boundary inverts the ratio. The spend simulator's sums and sums of squares
+have the resampled values' moments, and the z-statistics equal the readout's tests on the same
+counts. The fixed-horizon power at a planted visit lift matches the closed form for the pooled
+z-test with unequal variances within three Monte Carlo standard errors. The pipeline test runs
+the whole study in a fast mode (fewer runs and paths) on the fixture and checks every table,
+figure and the results.json section; the full sizes are used only by the pipeline.

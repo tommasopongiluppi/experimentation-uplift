@@ -11,6 +11,7 @@ from abkit.data import download_raw, load_to_duckdb
 from abkit.eda import run_checks
 from abkit.power import run_power
 from abkit.readout import run_cuped, run_frequentist
+from abkit.sequential import run_sequential
 from abkit.validate import run_validation
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,11 @@ def run_design() -> None:
     run_power()
 
 
+def run_peeking() -> None:
+    """Run the peeking simulation study and write its tables, figures and results section."""
+    run_sequential()
+
+
 def run_all() -> None:
     """Run every pipeline stage end to end."""
     for name, step in STEPS.items():
@@ -97,6 +103,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "cuped": run_adjusted,
     "bayes": run_bayesian,
     "power": run_design,
+    "sequential": run_peeking,
 }
 
 
@@ -117,6 +124,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("cuped", help="CUPED and Lin regression-adjusted estimates.")
     sub.add_parser("bayes", help="Bayesian readouts: Beta-Binomial rates and bootstrap spend.")
     sub.add_parser("power", help="Minimum detectable effects, sample sizes and power curves.")
+    sub.add_parser(
+        "sequential", help="Peeking simulation: naive, Bayesian, Pocock, O'Brien-Fleming, mSPRT."
+    )
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
 

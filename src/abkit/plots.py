@@ -687,3 +687,189 @@ def plot_spend_posterior(hist: pd.DataFrame, table: pd.DataFrame, path: Path) ->
         )
         fig.legend(loc="outside lower center", ncol=2)
         return save(fig, path)
+
+
+# ---------------------------------------------------------------------------------------------
+# Sequential testing
+# ---------------------------------------------------------------------------------------------
+
+SEQUENTIAL_METHOD_LABELS: dict[str, str] = {
+    "fixed": "Fixed horizon (day 14)",
+    "naive": "Naive peeking (z-test daily)",
+    "bayes": "Bayesian peeking (P > 0.95)",
+    "pocock": "Pocock",
+    "obf": "O'Brien-Fleming",
+    "msprt": "mSPRT (always-valid p)",
+}
+SEQUENTIAL_METHOD_COLORS: dict[str, str] = {
+    "fixed": TEXT_SECONDARY,
+    "naive": config.ARM_COLORS["womens"],
+    "bayes": "#c23a8c",
+    "pocock": config.ARM_COLORS["mens"],
+    "obf": "#6250d6",
+    "msprt": config.ARM_COLORS["control"],
+}
+SEQUENTIAL_METRIC_LABELS: dict[str, str] = {
+    "visit": "Visit rate",
+    "conversion": "Conversion rate",
+    "spend": "Spend per customer",
+}
+SEQUENTIAL_SCENARIO_LABELS: dict[str, str] = {
+    "aa": "A/A: no true effect",
+    "ab_observed": "A/B: observed visit lift",
+    "ab_mde": "A/B: visit lift at the MDE",
+}
+
+
+def _method_line(ax: Axes, x: pd.Series, y: pd.Series, method: str, label: bool = True) -> None:
+    ax.plot(
+        x,
+        y,
+        color=SEQUENTIAL_METHOD_COLORS[method],
+        linewidth=1.8,
+        marker="o",
+        markersize=3,
+        label=SEQUENTIAL_METHOD_LABELS[method] if label else None,
+    )
+
+
+def plot_sequential_fpr_vs_looks(looks: pd.DataFrame, path: Path, alpha: float = 0.05) -> Path:
+    """A/A false positive rate against the number of looks, one panel per metric.
+
+    Parameters
+    ----------
+    looks : pandas.DataFrame
+        Looks table from :func:`abkit.sequential.build_sequential_tables`.
+    path : Path
+        Output PNG path.
+    alpha : float
+        Nominal level, drawn dotted.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    metrics = list(dict.fromkeys(looks["metric"]))
+    methods = [m for m in SEQUENTIAL_METHOD_LABELS if m in set(looks["method"])]
+    with styled():
+        fig = Figure(figsize=(10.0, 3.8), layout="constrained")
+        axes = fig.subplots(1, len(metrics), squeeze=False, sharey=True).ravel()
+        for ax, metric in zip(axes, metrics, strict=True):
+            part = looks[looks["metric"] == metric]
+            for method in methods:
+                line = part[part["method"] == method].sort_values("n_looks")
+                _method_line(ax, line["n_looks"], line["reject_rate"], method, ax is axes[0])
+            ax.axhline(alpha, color=TEXT_SECONDARY, linestyle=":", linewidth=1.0)
+            ax.set_title(SEQUENTIAL_METRIC_LABELS.get(metric, metric), fontsize=11)
+            ax.set_xlabel("Number of equally spaced looks")
+            ax.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(1.0, decimals=0))
+            ax.set_ylim(0, None)
+        axes[0].set_ylabel(f"False positive rate (dotted: {alpha:.0%})")
+        n_runs = int(looks["n_runs"].iloc[0])
+        fig.suptitle(
+            f"Simulated A/A tests: false positive rate by number of looks "
+            f"({n_runs:,} runs per point)",
+            x=0.01,
+            ha="left",
+            fontweight="bold",
+            fontsize=13,
+        )
+        fig.legend(loc="outside lower center", ncol=3)
+        return save(fig, path)
+
+
+def plot_sequential_cumulative(
+    by_day: pd.DataFrame, path: Path, metric: str = "visit", alpha: float = 0.05
+) -> Path:
+    """Cumulative rejection rate by day for one metric, one panel per scenario.
+
+    Parameters
+    ----------
+    by_day : pandas.DataFrame
+        By-day table from :func:`abkit.sequential.build_sequential_tables`.
+    path : Path
+        Output PNG path.
+    metric : str
+        Metric to show (the headline one).
+    alpha : float
+        Nominal level, drawn dotted on the A/A panel.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    part = by_day[(by_day["metric"] == metric) & (by_day["method"] != "single_look")]
+    scenarios = [s for s in SEQUENTIAL_SCENARIO_LABELS if s in set(part["scenario"])]
+    methods = [m for m in SEQUENTIAL_METHOD_LABELS if m in set(part["method"])]
+    with styled():
+        fig = Figure(figsize=(10.0, 3.8), layout="constrained")
+        axes = fig.subplots(1, len(scenarios), squeeze=False, sharey=True).ravel()
+        for ax, scenario in zip(axes, scenarios, strict=True):
+            sub = part[part["scenario"] == scenario]
+            for method in methods:
+                line = sub[sub["method"] == method].sort_values("day")
+                _method_line(ax, line["day"], line["reject_rate"], method, ax is axes[0])
+            if scenario == "aa":
+                ax.axhline(alpha, color=TEXT_SECONDARY, linestyle=":", linewidth=1.0)
+            ax.set_title(SEQUENTIAL_SCENARIO_LABELS[scenario], fontsize=11)
+            ax.set_xlabel("Day")
+            ax.xaxis.set_major_locator(mpl.ticker.MaxNLocator(integer=True))
+            ax.yaxis.set_major_formatter(mpl.ticker.PercentFormatter(1.0, decimals=0))
+            ax.set_ylim(0, 1.0)
+        axes[0].set_ylabel("Share of runs stopped by the day")
+        fig.suptitle(
+            f"Simulated daily looks on the {SEQUENTIAL_METRIC_LABELS[metric].lower()}: "
+            "cumulative rejection by day",
+            x=0.01,
+            ha="left",
+            fontweight="bold",
+            fontsize=13,
+        )
+        fig.legend(loc="outside lower center", ncol=3)
+        return save(fig, path)
+
+
+def plot_sequential_boundaries(boundaries: pd.DataFrame, path: Path) -> Path:
+    """|z| rejection boundaries of each rule at every daily look.
+
+    Parameters
+    ----------
+    boundaries : pandas.DataFrame
+        Boundaries table from :func:`abkit.sequential.build_sequential_tables`: columns
+        ``look``, ``naive``, ``pocock``, ``obf`` and ``msprt_visit``.
+    path : Path
+        Output PNG path.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    with styled():
+        fig, ax = new_figure()
+        look = boundaries["look"]
+        for column, method, label in (
+            ("naive", "naive", "Naive peeking: 1.96 at every look"),
+            ("pocock", "pocock", "Pocock: constant boundary"),
+            ("obf", "obf", "O'Brien-Fleming: c · sqrt(K / k)"),
+            ("msprt_visit", "msprt", "mSPRT on visit (tau = MDE)"),
+        ):
+            ax.plot(
+                look,
+                boundaries[column],
+                color=SEQUENTIAL_METHOD_COLORS[method],
+                linewidth=1.8,
+                marker="o",
+                markersize=3,
+                label=label,
+            )
+        ax.set_xlabel("Look (day)")
+        ax.set_ylabel("|z| needed to stop")
+        ax.set_xticks(look)
+        ax.set_ylim(0, None)
+        n_looks = int(boundaries["n_looks"].iloc[0])
+        ax.set_title(f"Two-sided 5% boundaries for {n_looks} equally spaced looks")
+        ax.legend(loc="upper right")
+        return save(fig, path)
