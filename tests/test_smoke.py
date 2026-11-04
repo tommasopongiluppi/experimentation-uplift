@@ -33,6 +33,7 @@ def test_pipeline_commands():
         "power",
         "sequential",
         "segments",
+        "uplift",
     ]
     for command in (*steps, "run-all"):
         assert parser.parse_args([command]).command == command

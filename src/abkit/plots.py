@@ -1032,6 +1032,37 @@ def plot_uplift_curves(curves: pd.DataFrame, path: Path, title: str = "") -> Pat
     return save(fig, path)
 
 
+RANKING_COLORS: dict[str, str] = {
+    "s_learner": "#8e6bd6",
+    "t_learner": config.ARM_COLORS["mens"],
+    "x_learner": config.ARM_COLORS["womens"],
+    "response_model": config.ARM_COLORS["control"],
+    "recency_rule": "#b8860b",
+    "random": TEXT_SECONDARY,
+}
+RANKING_LABELS: dict[str, str] = {
+    "s_learner": "S-learner",
+    "t_learner": "T-learner",
+    "x_learner": "X-learner",
+    "response_model": "response model",
+    "recency_rule": "recency rule",
+    "random": "random",
+}
+
+
+def _draw_calibration(ax: Axes, deciles: pd.DataFrame, colour: str = SERIES) -> None:
+    pred, obs = deciles["predicted"].to_numpy(), deciles["observed"].to_numpy()
+    err = np.vstack([obs - deciles["boot_low"], deciles["boot_high"] - obs])
+    ax.errorbar(pred, obs, yerr=err, fmt="o", color=colour, ecolor=colour, capsize=3, lw=1.2)
+    for d, xp, yo in zip(deciles["decile"], pred, obs, strict=True):
+        ax.annotate(str(d), (xp, yo), xytext=(5, 4), textcoords="offset points", fontsize=8)
+    lo = min(float(np.nanmin(deciles["boot_low"])), float(pred.min()))
+    hi = max(float(np.nanmax(deciles["boot_high"])), float(pred.max()))
+    ax.plot([lo, hi], [lo, hi], color=TEXT_SECONDARY, lw=1.0, ls="--", label="perfect calibration")
+    ax.set_xlabel("mean predicted uplift in decile")
+    ax.set_ylabel("observed uplift (treated minus control rate)")
+
+
 def plot_uplift_calibration(deciles: pd.DataFrame, path: Path, title: str = "") -> Path:
     """Predicted vs observed uplift by decile of the predicted score, with bootstrap bars.
 
@@ -1052,18 +1083,86 @@ def plot_uplift_calibration(deciles: pd.DataFrame, path: Path, title: str = "") 
     """
     with styled():
         fig, ax = new_figure((6.0, 5.0))
-        pred, obs = deciles["predicted"].to_numpy(), deciles["observed"].to_numpy()
-        err = np.vstack([obs - deciles["boot_low"], deciles["boot_high"] - obs])
-        ax.errorbar(pred, obs, yerr=err, fmt="o", color=SERIES, ecolor=SERIES, capsize=3, lw=1.2)
-        for d, xp, yo in zip(deciles["decile"], pred, obs, strict=True):
-            ax.annotate(str(d), (xp, yo), xytext=(5, 4), textcoords="offset points", fontsize=8)
-        lo = min(float(np.nanmin(deciles["boot_low"])), float(pred.min()))
-        hi = max(float(np.nanmax(deciles["boot_high"])), float(pred.max()))
-        ax.plot(
-            [lo, hi], [lo, hi], color=TEXT_SECONDARY, lw=1.0, ls="--", label="perfect calibration"
-        )
+        _draw_calibration(ax, deciles)
         ax.set_title(f"{title}: calibration by decile" if title else "Calibration by decile")
-        ax.set_xlabel("mean predicted uplift in decile")
-        ax.set_ylabel("observed uplift (treated minus control rate)")
         ax.legend(loc="upper left")
+    return save(fig, path)
+
+
+def plot_calibration_grid(deciles: dict[str, pd.DataFrame], path: Path, title: str = "") -> Path:
+    """One calibration panel per learner, sharing both axes.
+
+    Parameters
+    ----------
+    deciles : dict of str to pandas.DataFrame
+        Learner name to its ``deciles`` table (see :func:`plot_uplift_calibration`).
+    path : Path
+        Output PNG path.
+    title : str
+        Figure title prefix, for example the pair and outcome.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    names = list(deciles)
+    with styled():
+        fig = Figure(figsize=(5.0 * len(names), 4.8), layout="constrained")
+        axes = fig.subplots(1, len(names), squeeze=False, sharex=True, sharey=True).ravel()
+        for ax, name in zip(axes, names, strict=True):
+            _draw_calibration(ax, deciles[name], RANKING_COLORS.get(name, SERIES))
+            ax.set_title(RANKING_LABELS.get(name, name))
+        axes[0].legend(loc="upper left")
+        fig.suptitle(f"{title}: calibration by decile" if title else "Calibration by decile")
+    return save(fig, path)
+
+
+def plot_qini_comparison(curves: dict[str, pd.DataFrame], path: Path, title: str = "") -> Path:
+    """Qini curves of several rankings on one axis, with bootstrap bands for the uplift models.
+
+    Parameters
+    ----------
+    curves : dict of str to pandas.DataFrame
+        Ranking name to its ``curves`` table of
+        :class:`abkit.uplift.evaluation.BootstrapEvaluation`. Names ending in ``_learner``
+        get a shaded band; baselines are drawn dashed. The ``random`` entry is drawn as the
+        straight line from the origin to its final value.
+    path : Path
+        Output PNG path.
+    title : str
+        Title prefix.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    with styled():
+        fig, ax = new_figure((8.0, 5.0))
+        for name, table in curves.items():
+            colour, label = RANKING_COLORS.get(name, SERIES), RANKING_LABELS.get(name, name)
+            x = table["share"].to_numpy()
+            if name == "random":
+                final = float(table["qini"].iloc[-1])
+                ax.plot([0, 1], [0, final], color=colour, lw=1.0, ls=":", label=label)
+                continue
+            is_model = name.endswith("_learner")
+            if is_model:
+                ax.fill_between(
+                    x, table["qini_low"], table["qini_high"], color=colour, alpha=0.12, lw=0
+                )
+            ax.plot(
+                x,
+                table["qini"],
+                color=colour,
+                lw=1.8 if is_model else 1.2,
+                ls="-" if is_model else "--",
+                label=label,
+            )
+        ax.set_title(f"{title}: Qini curves" if title else "Qini curves")
+        ax.set_xlabel("share of customers targeted")
+        ax.set_ylabel("incremental responses among the treated")
+        ax.set_xlim(0, 1)
+        ax.legend(loc="upper left", ncol=2)
     return save(fig, path)

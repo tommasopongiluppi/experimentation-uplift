@@ -13,6 +13,7 @@ from abkit.power import run_power
 from abkit.readout import run_cuped, run_frequentist
 from abkit.segments import run_segments
 from abkit.sequential import run_sequential
+from abkit.uplift.models import run_uplift_models
 from abkit.validate import run_validation
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,11 @@ def run_subgroups() -> None:
     run_segments()
 
 
+def run_uplift() -> None:
+    """Fit the cross-fitted uplift learners and baselines and write their evaluation."""
+    run_uplift_models()
+
+
 def run_all() -> None:
     """Run every pipeline stage end to end."""
     for name, step in STEPS.items():
@@ -111,6 +117,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "power": run_design,
     "sequential": run_peeking,
     "segments": run_subgroups,
+    "uplift": run_uplift,
 }
 
 
@@ -135,6 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
         "sequential", help="Peeking simulation: naive, Bayesian, Pocock, O'Brien-Fleming, mSPRT."
     )
     sub.add_parser("segments", help="Exploratory segment effects, interaction tests and BH.")
+    sub.add_parser("uplift", help="Cross-fitted uplift learners and baselines with evaluation.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
 

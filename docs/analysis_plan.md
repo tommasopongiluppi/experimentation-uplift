@@ -405,3 +405,24 @@ it was made before or after seeing the outcome results.
   it carries no information the numeric column does not already carry, and the tree models
   can place their own splits on `history`. Removing a redundant copy cannot be chosen by its
   effect on a result because no uplift model had been fitted.
+
+### D7. Uplift learners: S-learner added; hyperparameters chosen on an inner validation split
+
+- **Date:** 2026-11-04. **Section:** §11. **Made before** any uplift model was fitted on the
+  experiment data (the learners were being written when this entry was added).
+- **What changed.**
+  1. An **S-learner** (one classifier with the treatment indicator as a feature) is fitted
+     and evaluated next to the pre-specified T- and X-learners, on the same folds.
+  2. §11 says the base models use "fixed default hyperparameters". Instead, each base model
+     picks one of four fixed grid points (learning rate 0.05 or 0.1, 15 or 31 leaves) on an
+     inner validation split of its training fold, by log loss for classifiers and squared
+     error for the X-learner's second-stage regressors, with early stopping. The evaluation
+     fold is never used for any choice. There is still no tuning against the uplift metrics.
+  3. The baselines evaluated as rankings are random targeting, the recency rule and the
+     response model. The plan's fourth baseline, "A/B winner at random", selects customers at
+     random like baseline 1 and differs only in which email is sent, so as a ranking within
+     one email-vs-control pair it coincides with random targeting; it is evaluated as its own
+     policy in the budgeted targeting stage, where the choice of email matters.
+- **Why.** The S-learner is the simplest meta-learner and a useful reference. Choosing
+  hyperparameters on an inner split by the base models' own losses guards against a poorly
+  fitted default without touching the uplift metrics or the evaluation fold.

@@ -114,20 +114,26 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def categorical_mask(columns: Iterable[str] = FEATURE_NAMES) -> np.ndarray:
-    """Boolean mask marking the 0/1 columns (flags and one-hot indicators).
+def categorical_mask(
+    columns: Iterable[str] = FEATURE_NAMES, extra: Iterable[str] = ()
+) -> np.ndarray:
+    """Boolean mask marking the 0/1 columns (flags, one-hot indicators and ``extra``).
 
     Meant for the ``categorical_features`` argument of scikit-learn's histogram gradient
-    boosting estimators, which then treat each indicator as a two-level category.
+    boosting estimators, which then treat each indicator as a two-level category. Columns
+    not known to be indicators are left numeric.
 
     Parameters
     ----------
     columns : iterable of str
         Feature names, in matrix order.
+    extra : iterable of str
+        Further column names to mark as categorical (for example a treatment indicator).
 
     Returns
     -------
     numpy.ndarray
         Boolean array, True where the column is a 0/1 indicator.
     """
-    return np.array([c not in NUMERIC_COLS for c in columns], dtype=bool)
+    indicators = {*BINARY_COLS, *FEATURE_NAMES[len(NUMERIC_COLS) :], *extra}
+    return np.array([c in indicators for c in columns], dtype=bool)

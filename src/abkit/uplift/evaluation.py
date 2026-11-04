@@ -94,6 +94,17 @@ class _Ranking:
         n, n_t, y_t, y_c = (np.r_[zero, a[keep]] for a in (n, n_t, y_t, y_c))
         return {"n": n, "n_t": n_t, "n_c": n - n_t, "y_t": y_t, "y_c": y_c, "share": n / n[-1]}
 
+    def uplift_at_k(self, k: float, weights: np.ndarray | None = None) -> float:
+        """Treated-minus-control rate in the top ``floor(k * total weight)`` customers."""
+        w = np.ones(self.y.size) if weights is None else weights[self.order]
+        top = np.cumsum(w) <= np.floor(k * w.sum())
+        w_top, y_top = w[top], self.y[top]
+        wt = w_top * self.treated[top]
+        wc = w_top - wt
+        if wt.sum() == 0 or wc.sum() == 0:
+            return float("nan")
+        return float((wt * y_top).sum() / wt.sum() - (wc * y_top).sum() / wc.sum())
+
 
 def _rate(num: np.ndarray, den: np.ndarray) -> np.ndarray:
     return np.divide(num, den, out=np.zeros_like(num, dtype=float), where=den > 0)
@@ -279,15 +290,7 @@ def uplift_at_k(
     _check(score, treated, y)
     if not 0 < k <= 1:
         raise ValueError(f"k must be in (0, 1], got {k}.")
-    order = np.argsort(-score, kind="stable")
-    w = (np.ones(score.size) if weights is None else weights)[order]
-    top = np.cumsum(w) <= np.floor(k * w.sum())
-    w_top, yt = w[top], y[order][top]
-    wt = w_top * treated[order][top]
-    wc = w_top - wt
-    if wt.sum() == 0 or wc.sum() == 0:
-        return float("nan")
-    return float((wt * yt).sum() / wt.sum() - (wc * yt).sum() / wc.sum())
+    return _Ranking(score, treated, y).uplift_at_k(k, weights)
 
 
 def assign_bins(score: np.ndarray, n_bins: int = N_BINS) -> np.ndarray:
@@ -383,11 +386,16 @@ class BootstrapEvaluation:
         ``uplift_high``, ``qini``, ``qini_low``, ``qini_high``.
     deciles : pandas.DataFrame
         :func:`uplift_by_decile` with ``boot_low`` and ``boot_high`` added.
+    replicates : pandas.DataFrame
+        The scalar metrics on every resample, one column per metric, one row per resample.
+        Two evaluations run with the same seed on the same customers draw the same resamples,
+        so differences of their replicates are paired.
     """
 
     scalars: pd.DataFrame
     curves: pd.DataFrame
     deciles: pd.DataFrame
+    replicates: pd.DataFrame
 
 
 def _interval(
@@ -469,7 +477,7 @@ def bootstrap_evaluation(
             perf = _area(cp["share"], values_of[name](cp))
             den = perf - random
             scalars += [(model - random) / den if den > 0 else np.nan, model - random]
-        scalars += [uplift_at_k(score, treated, y, k, weights) for k in ks]
+        scalars += [ranking.uplift_at_k(k, weights) for k in ks]
         w = np.ones(n) if weights is None else weights
         wt, wc = w * treated, w * (1 - treated)
         rate_t = _rate(np.bincount(bins, wt * y, n_bins + 1), np.bincount(bins, wt, n_bins + 1))
@@ -512,4 +520,5 @@ def bootstrap_evaluation(
     deciles = uplift_by_decile(score, treated, y, n_bins, alpha).assign(
         boot_low=lo_d, boot_high=hi_d
     )
-    return BootstrapEvaluation(scalars, curves, deciles)
+    replicates = pd.DataFrame(rep_s, columns=metric_names)
+    return BootstrapEvaluation(scalars, curves, deciles, replicates)

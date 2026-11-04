@@ -110,3 +110,8 @@ def test_build_features_accepts_any_row_order(customers):
     shuffled = customers.sample(frac=1.0, random_state=0)
     X = build_features(shuffled)
     pd.testing.assert_frame_equal(X.sort_index(), build_features(customers))
+
+
+def test_categorical_mask_leaves_unknown_columns_numeric():
+    mask = categorical_mask(["recency", "mens", "treated", "x1"], extra=("treated",))
+    np.testing.assert_array_equal(mask, [False, True, True, False])

@@ -1072,3 +1072,65 @@ ranking scores exactly 1. Resampling weights of one reproduce the unweighted val
 test checks the bootstrap interval's coverage. When scikit-uplift is installed, the curves,
 both normalised areas and uplift at k are compared with its implementation (skipped
 otherwise).
+
+## Uplift meta-learners: S, T and X
+
+**What they do.** Each learner turns two outcome models into a per-customer uplift score
+`tau(x)`, the predicted change in the response rate from sending the email. All use
+scikit-learn's histogram gradient boosting (`HistGradientBoostingClassifier` for the binary
+outcomes, `HistGradientBoostingRegressor` for the X-learner's second stage), with the 0/1
+feature columns passed as categorical. Each email is modelled against control separately,
+with the known treatment probability `g` = the realised share of the email arm in that pair.
+
+- **S-learner:** one classifier on `(x, treated)`; `tau(x) = mu(x, 1) − mu(x, 0)`.
+- **T-learner:** `mu_1` fitted on treated rows, `mu_0` on control rows;
+  `tau(x) = mu_1(x) − mu_0(x)`.
+- **X-learner** (Künzel et al., 2019): the T-learner models impute an individual effect for
+  every training row, `D_i = y_i − mu_0(x_i)` if treated and `D_i = mu_1(x_i) − y_i` if
+  control. Two regressors fit `tau_1(x)` on the treated rows' `D` and `tau_0(x)` on the
+  control rows' `D`, and the score is `tau(x) = g tau_0(x) + (1 − g) tau_1(x)`. With the
+  treated share `g` near one half the two estimates are weighted about equally.
+
+**Hyperparameters.** A fixed grid of four points (learning rate 0.05 or 0.1; 15 or 31 leaves)
+with early stopping (up to 500 iterations, stop after 10 without improvement on an internal
+10% validation set). Inside each training fold, 20% is held out as an inner validation split;
+the grid point with the lowest log loss (classifiers) or squared error (regressors) on that
+split is refitted on the whole training fold. The evaluation fold is never used for any
+choice, and nothing is tuned against the uplift metrics (analysis plan D7).
+
+**Assumptions.** Randomisation within each pair, so the outcome models' difference is a
+causal effect; enough signal in the pre-treatment variables for heterogeneity to be
+learnable. The outcomes are rare (visits about 15%, conversions about 1%), so the conversion
+scores are expected to be noisy.
+
+**Tests.** On synthetic data with a known heterogeneous effect, the T- and X-learners' scores
+have a clearly positive rank correlation with the true effect and beat random on the Qini
+coefficient. A step-function effect that depends on one feature is recovered by all three
+learners. The learners never see the evaluation fold: with a recording `fit_predict` every
+training set is disjoint from its test set. The response model's score equals the treated
+outcome model's probability.
+
+## Targeting baselines: likely to respond versus persuadable
+
+The uplift models are compared with three rankings that need no causal model:
+
+- **Random targeting:** uniform random scores. Its Qini curve is the straight line to the
+  overall effect; the normalised coefficient is 0 on average.
+- **Recency rule:** most recent purchasers first (ties by higher `history`, then customer
+  id). This is the R in RFM targeting and the strongest single rule in direct marketing.
+- **Response model:** a classifier for `P(visit | emailed, x)` fitted on the emailed rows,
+  ranking customers by how likely they are to visit *if emailed*.
+
+The response model targets the **likely to respond**: customers with a high visit rate when
+emailed. Many of them would have visited anyway, so emailing them adds little. An uplift
+model targets the **persuadable**: customers whose visit rate the email raises the most,
+`P(visit | emailed, x) − P(visit | not emailed, x)`. The two rankings agree only when the
+baseline rate is flat across customers. When the baseline varies, the response model spends
+budget on sure things and misses customers with a low baseline but a large lift; it can even
+rank "do not disturb" customers (negative effect) at the top if their response rate under
+email is still high. The Qini curve shows the difference directly: a ranking that chases
+responders rather than lift flattens toward the random line.
+
+The plan's fourth baseline, "A/B winner at random", differs from random targeting only in
+which email is sent, so within one email-vs-control pair it is the random ranking; it is
+evaluated as a policy in the budgeted targeting stage (analysis plan D7).
