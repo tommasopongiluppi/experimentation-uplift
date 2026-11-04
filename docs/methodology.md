@@ -900,3 +900,85 @@ counts. The fixed-horizon power at a planted visit lift matches the closed form 
 z-test with unequal variances within three Monte Carlo standard errors. The pipeline test runs
 the whole study in a fast mode (fewer runs and paths) on the fixture and checks every table,
 figure and the results.json section; the full sizes are used only by the pipeline.
+
+## Segment analysis (exploratory)
+
+`abkit.segments`; readout `abkit.segments.run_segments`, outputs `reports/tables/segments.csv`
+(one row per outcome, segment variable, level and email vs control),
+`reports/tables/segments_interactions.csv` (one joint test per outcome, segment variable and
+email), `reports/tables/segments_fdr_simulation.csv`, the `segments` section of
+`reports/results.json` and `reports/figures/forest_segments.png`. Every row carries the label
+`exploratory`.
+
+**What it does.** Asks whether the emails worked differently for different kinds of customer,
+on the seven pre-specified segment variables of analysis plan §10 (new customer, channel, zip
+code, past men's buyer, past women's buyer, recency band and history band: 23 levels in all)
+and never on any other. Segments are customer subgroups defined by pre-treatment variables
+only; the treatment arm is never a segment. Results are exploratory: they generate hypotheses
+for a future test and are not decisions, so the README reports them as such and the decision
+rests on the pre-registered readouts.
+
+**Per-level effects.** Within each level, each email vs control: spend by the Welch difference
+in means with its interval; visit and conversion by the difference in proportions with the
+pooled two-proportion z-test and the Newcombe interval, exactly the readout's tests (§6)
+applied to the level's customers. The sums behind them come from `sql/segment_stats.sql`.
+
+**Interaction tests.** For each outcome, segment variable and email, OLS on the customers of
+that email arm and control: Y = a + τ D + Σ_l β_l 1{level = l} + Σ_l γ_l D · 1{level = l} +
+error, with the first level as reference. τ is the effect in the reference level and γ_l is
+how much the effect in level l differs from it; the within-level effects τ + γ_l are the raw
+differences in means of the level (the model is saturated). The question "does the effect
+differ across levels?" is the joint hypothesis γ = 0, tested with a Wald chi-square statistic
+γ' V_γ⁻¹ γ on L − 1 degrees of freedom, where V is the HC2 heteroskedasticity-robust covariance
+(X'X)⁻¹ X' diag(e_i² / (1 − h_ii)) X (X'X)⁻¹, computed in numpy and checked against
+statsmodels. For visit and conversion this is a linear probability model, which is the right
+model for differences in rates. One test per variable answers the heterogeneity question
+directly, whereas comparing 23 separate p-values does not: two levels can both be significant
+with the same effect, or one significant and one not with effects that do not differ.
+
+**Multiple testing.** Benjamini–Hochberg at q = 0.05 over each outcome's whole segment family:
+the 46 per-level tests and the 14 interaction tests together, 60 per outcome, as pre-specified.
+Raw and adjusted p-values are reported side by side with the family size, and
+`significant_fdr` flags adjusted p ≤ q. The Hillstrom challenge's own question, whether the
+women's email worked better among past women's buyers and the men's email among past men's
+buyers, is answered from the pre-specified `mens` and `womens` rows (the effect among past
+buyers, among non-buyers and the interaction test), inside the family, with no extra test.
+
+**Deviation D5.** The plan names spend and visit as the segment outcomes. Conversion is added
+as a third outcome with its own family of 60 tests, so the spend and visit families are
+unchanged. Recorded in the plan's Deviations section.
+
+**The README simulation.** The reason the family matters, in one A/A experiment: 20
+independent segments, each an A/B comparison of a visit-like rate with the real arm size
+split twenty ways and the control arm's visit rate as baseline. Each segment gets the z-test;
+then the run's 20 p-values are Benjamini–Hochberg adjusted. With no true effect anywhere, raw
+testing finds at least one "significant" segment in a share of runs equal to 1 − 0.95²⁰
+(about 64%), while Benjamini–Hochberg finds one in a share equal to q. A second scenario
+plants a real lift in 5 of the 20 segments (the lift one segment's test detects with 80%
+power): there the realised false discovery rate of raw testing is several times q, and
+Benjamini–Hochberg's equals q · 15 / 20, its exact value under independence (Benjamini and
+Hochberg 1995), at the cost of lower power on the real effects. Every rate carries its Monte
+Carlo standard error next to the analytic reference.
+
+**Assumptions.** Randomisation holds within every segment because the segment variables are
+pre-treatment, so each within-level difference is an unbiased effect estimate. The interaction
+test's HC2 covariance is valid under heteroskedasticity across levels and arms; the chi-square
+reference is asymptotic and the smallest levels (the top history band) hold a few hundred
+customers per arm. For spend, the Welch interval in a small level with a handful of converters
+is wide and only approximately normal, as the readout section discusses. Benjamini–Hochberg
+controls the false discovery rate under independence or positive dependence; the per-level and
+interaction tests of one outcome are positively dependent, which the procedure tolerates.
+
+**How it is tested.** The OLS coefficients and HC2 covariance match statsmodels
+`cov_type="HC2"` to 1e-8; the joint statistic and p-value match the formula
+`y ~ d * C(seg)` and its `wald_test` to 1e-6, with planted heterogeneity found at p < 1e-6;
+the within-level effects equal the raw differences in means; with a binary segment the
+statistic equals the squared interaction t-ratio; wrong inputs (one level, one arm, a level
+missing from an arm) raise. The segment columns reproduce the SQL counts level by level and
+reject outcome columns. Per-level rows equal the readout's `diff_in_means` and
+`diff_in_proportions` on the level's customers. The adjusted p-values equal
+`benjamini_hochberg` on the concatenated 60 p-values of each outcome. The row-wise BH used by
+the simulation equals the scalar one row by row. The simulation reproduces 1 − 0.95²⁰ and q
+under the global null, and q · 15 / 20 with five real effects, within three Monte Carlo standard
+errors. The pipeline test on the fixture checks every table, the figure and the results.json
+section, and that every row is labelled exploratory.

@@ -873,3 +873,121 @@ def plot_sequential_boundaries(boundaries: pd.DataFrame, path: Path) -> Path:
         ax.set_title(f"Two-sided 5% boundaries for {n_looks} equally spaced looks")
         ax.legend(loc="upper right")
         return save(fig, path)
+
+
+# ---------------------------------------------------------------------------------------------
+# Segments
+# ---------------------------------------------------------------------------------------------
+
+SEGMENT_VARIABLE_LABELS: dict[str, str] = {
+    "newbie": "New customer",
+    "channel": "Channel",
+    "zip_code": "Zip code",
+    "mens": "Past men's buyer",
+    "womens": "Past women's buyer",
+    "recency": "Recency (months)",
+    "history_segment": "History band",
+}
+SEGMENT_OUTCOME_LABELS: dict[str, tuple[str, float]] = {
+    "spend": ("Spend per customer, $", 1.0),
+    "visit": ("Visit rate, pp", 100.0),
+    "conversion": ("Conversion rate, pp", 100.0),
+}
+
+
+def plot_segment_forest(effects: pd.DataFrame, path: Path) -> Path:
+    """Forest plot of the effect of each email vs control within every segment level.
+
+    One panel per outcome, segment levels grouped by variable on the vertical axis, one
+    series per email. Filled markers are significant after Benjamini-Hochberg within the
+    outcome's family; hollow markers are not. Every result is exploratory.
+
+    Parameters
+    ----------
+    effects : pandas.DataFrame
+        Output of :func:`abkit.segments.segment_effects` after adjustment: columns
+        ``outcome``, ``variable``, ``level``, ``treatment``, ``diff``, ``ci_low``,
+        ``ci_high`` and ``significant_fdr``.
+    path : Path
+        Output PNG path.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    outcomes = [o for o in SEGMENT_OUTCOME_LABELS if o in set(effects["outcome"])]
+    treatments = list(dict.fromkeys(effects["treatment"]))
+    groups = list(dict.fromkeys(zip(effects["variable"], effects["level"], strict=True)))
+    # Vertical positions: one row per level, a blank row between variables.
+    positions: dict[tuple[str, str], float] = {}
+    y, previous = 0.0, None
+    group_mid: dict[str, list[float]] = {}
+    for variable, level in groups:
+        if previous is not None and variable != previous:
+            y -= 1.0
+        positions[(variable, level)] = y
+        group_mid.setdefault(variable, []).append(y)
+        y -= 1.0
+        previous = variable
+    dodge = 0.18 * (np.arange(len(treatments)) - (len(treatments) - 1) / 2)
+    with styled():
+        fig = Figure(figsize=(11.0, 0.3 * len(positions) + 2.6), layout="constrained")
+        axes = fig.subplots(1, len(outcomes), squeeze=False, sharey=True).ravel()
+        for ax, outcome in zip(axes, outcomes, strict=True):
+            label, scale = SEGMENT_OUTCOME_LABELS[outcome]
+            part = effects[effects["outcome"] == outcome]
+            for k, treatment in enumerate(treatments):
+                colour = config.ARM_COLORS[treatment]
+                sub = part[part["treatment"] == treatment]
+                for _, r in sub.iterrows():
+                    yy = positions[(r["variable"], r["level"])] + dodge[k]
+                    ax.plot(
+                        [scale * r["ci_low"], scale * r["ci_high"]],
+                        [yy, yy],
+                        color=colour,
+                        linewidth=1.6,
+                        zorder=2,
+                    )
+                    ax.scatter(
+                        [scale * r["diff"]],
+                        [yy],
+                        s=30,
+                        facecolor=colour if r["significant_fdr"] else SURFACE,
+                        edgecolor=colour,
+                        linewidth=1.2,
+                        zorder=3,
+                    )
+                if ax is axes[0]:
+                    ax.scatter([], [], s=30, color=colour, label=f"{treatment} vs control")
+            ax.axvline(0, color=TEXT_SECONDARY, linewidth=0.9)
+            ax.set_xlabel(label)
+            ax.set_title(label.split(",")[0], fontsize=11)
+        for variable, ys in group_mid.items():
+            axes[0].text(
+                -0.02,
+                max(ys) + 0.55,
+                SEGMENT_VARIABLE_LABELS.get(variable, variable),
+                transform=axes[0].get_yaxis_transform(),
+                ha="right",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+                color=TEXT_SECONDARY,
+            )
+        axes[0].set_yticks(list(positions.values()), [level for _, level in positions])
+        for ax in axes:
+            ax.tick_params(axis="y", length=0)
+            ax.grid(axis="y", visible=False)
+        axes[0].scatter([], [], s=30, facecolor=TEXT, edgecolor=TEXT, label="BH-significant")
+        axes[0].scatter([], [], s=30, facecolor=SURFACE, edgecolor=TEXT, label="not significant")
+        fig.suptitle(
+            "Exploratory: effect of each email vs control within pre-specified segments "
+            "(95% intervals)",
+            x=0.01,
+            ha="left",
+            fontweight="bold",
+            fontsize=13,
+        )
+        fig.legend(loc="outside lower center", ncol=4)
+        return save(fig, path)

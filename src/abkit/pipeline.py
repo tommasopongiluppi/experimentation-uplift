@@ -11,6 +11,7 @@ from abkit.data import download_raw, load_to_duckdb
 from abkit.eda import run_checks
 from abkit.power import run_power
 from abkit.readout import run_cuped, run_frequentist
+from abkit.segments import run_segments
 from abkit.sequential import run_sequential
 from abkit.validate import run_validation
 
@@ -88,6 +89,11 @@ def run_peeking() -> None:
     run_sequential()
 
 
+def run_subgroups() -> None:
+    """Run the exploratory segment analysis and write its tables, figure and results section."""
+    run_segments()
+
+
 def run_all() -> None:
     """Run every pipeline stage end to end."""
     for name, step in STEPS.items():
@@ -104,6 +110,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "bayes": run_bayesian,
     "power": run_design,
     "sequential": run_peeking,
+    "segments": run_subgroups,
 }
 
 
@@ -127,6 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser(
         "sequential", help="Peeking simulation: naive, Bayesian, Pocock, O'Brien-Fleming, mSPRT."
     )
+    sub.add_parser("segments", help="Exploratory segment effects, interaction tests and BH.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
 

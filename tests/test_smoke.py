@@ -23,7 +23,17 @@ def test_budget():
 
 def test_pipeline_commands():
     parser = build_parser()
-    steps = ["data", "validate", "checks", "frequentist", "cuped", "bayes", "power", "sequential"]
+    steps = [
+        "data",
+        "validate",
+        "checks",
+        "frequentist",
+        "cuped",
+        "bayes",
+        "power",
+        "sequential",
+        "segments",
+    ]
     for command in (*steps, "run-all"):
         assert parser.parse_args([command]).command == command
     assert list(STEPS) == steps

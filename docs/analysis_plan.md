@@ -375,3 +375,21 @@ it was made before or after seeing the outcome results.
   metric, and none could favour a result: the cross-check cannot overrule the bootstrap, and the
   threshold definition is the one the plan describes ("the control mean is computed at readout
   time").
+
+
+### D5. Segments: conversion added as a third exploratory outcome
+
+- **Date:** 2026-11-04. **Section:** §10. **Made after** outcomes were compared between arms:
+  every readout of §6, §7 and §9 had been run when this entry was written; the segment
+  analysis had not.
+- **What changed.** §10 names spend and visit as the segment outcomes. Conversion is analysed
+  as well, with the same per-level test as visit (difference in proportions, pooled z-test,
+  Newcombe interval), the same interaction test, and its **own** Benjamini–Hochberg family of
+  46 + 14 = 60 tests. The spend and visit families are exactly as pre-specified; nothing is
+  pooled across outcomes. Every conversion segment row is labelled exploratory like the rest.
+- **Why.** Requested at implementation time so that all three metrics are read within segments.
+  Adding a family cannot change the adjusted p-values of the pre-specified families, so it
+  cannot favour a result in them; conversion's own family is adjusted at the same q.
+- **Note.** The challenge's question (did each email work better among past buyers of its own
+  merchandise?) is answered from the pre-specified `mens` and `womens` segment rows and
+  interaction tests inside the family; it needs no new test and is exploratory, not post hoc.
