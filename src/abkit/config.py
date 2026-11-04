@@ -122,3 +122,21 @@ def ensure_dirs() -> None:
     """Create the local data and report directories if they do not exist."""
     for path in (DATA_RAW, DATA_PROCESSED, TABLES, FIGURES):
         path.mkdir(parents=True, exist_ok=True)
+
+
+# Pipeline: --fast replaces the full simulation sizes (the module constants N_DRAWS, N_RUNS and
+# so on) with these, for CI and quick checks. The sizes used are recorded in results.json.
+FAST_SIZES: dict[str, int] = {
+    "frequentist_resamples": 1_000,
+    "bayes_draws": 20_000,
+    "bayes_ppc_replicates": 500,
+    "sequential_runs": 200,
+    "sequential_runs_looks": 100,
+    "sequential_paths": 2_000,
+    "segments_sim_runs": 200,
+    "uplift_resamples": 30,
+    "policy_resamples": 40,
+    "robustness_seeds": 3,
+}
+# Stage cache: fingerprints of each stage's inputs, code and settings (gitignored with data/).
+PIPELINE_CACHE: Path = DATA_DIR / "pipeline_cache.json"

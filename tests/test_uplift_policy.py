@@ -299,7 +299,7 @@ def test_profiles_are_aggregates(rng):
 
 
 def test_ab_winner_rule(tmp_path):
-    def results(sig_mens, sig_womens, diff_mens=0.7, diff_womens=0.4):
+    def results(sig_mens, sig_womens, diff_mens=0.7, diff_womens=0.4, recommended="womens"):
         rows = [
             {
                 "metric": "spend",
@@ -328,7 +328,12 @@ def test_ab_winner_rule(tmp_path):
             json.dumps(
                 {
                     "frequentist": {"rows": rows},
-                    "bayes_spend": {"recommendation": {"recommended_email": "womens"}},
+                    "bayes_spend": {
+                        "recommendation": {
+                            "recommended_email": recommended,
+                            "p_mens_better_than_womens": 0.3,
+                        }
+                    },
                 }
             )
         )
@@ -339,6 +344,9 @@ def test_ab_winner_rule(tmp_path):
     assert ab_winner(results(False, True))[0] == "womens"
     assert ab_winner(results(True, False))[0] == "mens"
     assert ab_winner(results(False, False))[0] == "womens"
+    # No email meets either rule: the head-to-head posterior decides and no winner is declared.
+    email, basis = ab_winner(results(False, False, recommended=None))
+    assert email == "womens" and "no winner declared" in basis
 
 
 # --- stage ---------------------------------------------------------------------------------------

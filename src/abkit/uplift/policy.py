@@ -203,7 +203,9 @@ def ab_winner(results_path: Path = config.RESULTS_JSON) -> tuple[str, str]:
 
     The email that beats control on spend in the primary frequentist family; if both do, the
     one with the larger estimated difference; if neither does, the Bayesian spend readout's
-    recommended email.
+    recommended email. When no email meets either rule (possible on small or synthetic data,
+    never on the real experiment), the email ahead in the Bayesian head-to-head on spend is
+    used so the targeting policies still run, and the basis says that no winner was declared.
 
     Parameters
     ----------
@@ -231,8 +233,16 @@ def ab_winner(results_path: Path = config.RESULTS_JSON) -> tuple[str, str]:
         ], "both emails beat control on spend; larger estimated difference wins"
     if len(winners) == 1:
         return winners[0]["treatment"], "the only email that beats control on spend"
-    email = results["bayes_spend"]["recommendation"]["recommended_email"]
-    return email, "neither email beats control on spend; higher posterior mean spend wins"
+    recommendation = results["bayes_spend"]["recommendation"]
+    email = recommendation["recommended_email"]
+    if email is not None:
+        return email, "neither email beats control on spend; higher posterior mean spend wins"
+    p_mens = recommendation["p_mens_better_than_womens"]
+    email = "mens" if p_mens is None or p_mens >= 0.5 else "womens"
+    return email, (
+        "no email meets either rule against control; no winner declared, the email ahead "
+        "in the head-to-head posterior on spend is used"
+    )
 
 
 # --- policy value ------------------------------------------------------------------------------
@@ -753,7 +763,7 @@ def run_policy(
     write_table(profile_table, PROFILE_TABLE_NAME, tables)
     write_table(calibration, CALIBRATION_TABLE_NAME, tables)
     write_table(suppressed, SUPPRESSED_TABLE_NAME, tables)
-    figure = plots.plot_budget_curve(curve, figures / FIGURE_NAME, budget)
+    figure = plots.plot_budget_curve(curve, figures / FIGURE_NAME, budget, comparison)
 
     def headline(policy: str, outcome: str) -> dict[str, Any]:
         r = policy_table[

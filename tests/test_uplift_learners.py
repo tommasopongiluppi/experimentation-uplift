@@ -155,9 +155,9 @@ def test_response_model_fits_on_treated_rows_only(monkeypatch, rng):
     seen = []
     original = learners_module.fit_classifier
 
-    def spy(Xf, yf, r):
+    def spy(Xf, yf, r, *args):
         seen.append(len(Xf))
-        return original(Xf, yf, r)
+        return original(Xf, yf, r, *args)
 
     monkeypatch.setattr(learners_module, "fit_classifier", spy)
     ResponseModel(rng)(X, t, y, X.iloc[:5])
@@ -182,12 +182,11 @@ def test_fit_classifier_selects_from_grid_with_inner_loss(rng):
     assert fit.estimator.n_features_in_ == len(FEATURE_NAMES)
 
 
-def test_fit_classifier_prefers_the_grid_point_with_lower_inner_loss(monkeypatch, rng):
+def test_fit_classifier_prefers_the_grid_point_with_lower_inner_loss(rng):
     X, t, y, _ = _synthetic(rng, 3_000)
     useless = {"learning_rate": 1e-6, "max_leaf_nodes": 2}
     good = {"learning_rate": 0.1, "max_leaf_nodes": 15}
-    monkeypatch.setattr(learners_module, "GRID", (useless, good))
-    fit = fit_classifier(X, y * t, rng)
+    fit = fit_classifier(X, y * t, rng, grid=(useless, good))
     assert fit.params == good
 
 

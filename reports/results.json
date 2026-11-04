@@ -3401,6 +3401,38 @@
       }
     ]
   },
+  "pipeline": {
+    "mode": "full",
+    "data": "hillstrom",
+    "with_robustness": false,
+    "stages": [
+      "data",
+      "validate",
+      "checks",
+      "frequentist",
+      "cuped",
+      "bayes",
+      "power",
+      "sequential",
+      "segments",
+      "uplift",
+      "policy",
+      "report"
+    ],
+    "sizes": {
+      "frequentist_resamples": 10000,
+      "bayes_draws": 200000,
+      "bayes_ppc_replicates": 4000,
+      "sequential_runs": 20000,
+      "sequential_runs_looks": 10000,
+      "sequential_paths": 500000,
+      "segments_sim_runs": 10000,
+      "uplift_resamples": 1000,
+      "policy_resamples": 1000,
+      "robustness_seeds": 10
+    },
+    "abkit_version": "0.1.0"
+  },
   "policy": {
     "label": "policy",
     "plan_section": "11",
@@ -15792,7 +15824,7 @@
     },
     "balance": {
       "threshold": 0.1,
-      "max_abs_smd": 0.016899120365944938,
+      "max_abs_smd": 0.01689912036594494,
       "max_abs_smd_variable": "channel",
       "max_abs_smd_level": "phone",
       "n_flagged": 0,

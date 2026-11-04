@@ -287,16 +287,17 @@ def run_checks(db_path: Path = config.DUCKDB_PATH, reports_dir: Path = config.RE
     plots.plot_balance(balance, figures_dir / "balance_smd.png")
     plots.plot_log_histogram(
         eda["eda_spend_converters_hist"],
-        "Spend among converters (all arms pooled)",
+        "Spend among converters",
         "Spend in the two-week window (log scale)",
         figures_dir / "eda_spend_converters_log.png",
-        note="Customers who did not convert (zero spend) are excluded.",
+        note="All arms pooled; customers who did not convert (zero spend) are excluded.",
     )
     plots.plot_log_histogram(
         eda["eda_history_hist"],
-        "Past-year spend (history), all customers",
+        "Past-year spend (history)",
         "History (log scale)",
         figures_dir / "eda_history_log.png",
+        note="All customers, all arms pooled.",
     )
     plots.plot_recency(eda["eda_recency"], figures_dir / "eda_recency.png")
     (reports_dir / EDA_MD).write_text(render_eda_markdown(tables_dir))

@@ -40,6 +40,7 @@ from abkit.uplift.evaluation import (
 from abkit.uplift.learners import (
     FIXED_PARAMS,
     GRID,
+    Grid,
     ResponseModel,
     SLearner,
     TLearner,
@@ -66,7 +67,9 @@ DEVIATION: str = (
 )
 
 
-def score_pair(pair: TreatmentPair, outcome: str, rng: np.random.Generator) -> pd.DataFrame:
+def score_pair(
+    pair: TreatmentPair, outcome: str, rng: np.random.Generator, grid: Grid = GRID
+) -> pd.DataFrame:
     """Out-of-fold scores of every ranking for one pair and outcome.
 
     Parameters
@@ -77,6 +80,8 @@ def score_pair(pair: TreatmentPair, outcome: str, rng: np.random.Generator) -> p
         ``"visit"`` or ``"conversion"``.
     rng : numpy.random.Generator
         Source of the fold split, model seeds and the random baseline.
+    grid : Grid
+        Hyperparameter grid searched on the inner split of every fit.
 
     Returns
     -------
@@ -91,10 +96,10 @@ def score_pair(pair: TreatmentPair, outcome: str, rng: np.random.Generator) -> p
     y_other = pair.outcomes_other[outcome].to_numpy().astype(int)
     folds = stratified_folds(pair.treated, y, rng, N_FOLDS)
     learners = {
-        "s_learner": SLearner(rng),
-        "t_learner": TLearner(rng),
-        "x_learner": XLearner(rng, pair.p_treat),
-        "response_model": ResponseModel(rng),
+        "s_learner": SLearner(rng, grid),
+        "t_learner": TLearner(rng, grid),
+        "x_learner": XLearner(rng, pair.p_treat, grid),
+        "response_model": ResponseModel(rng, grid),
     }
     out = pd.DataFrame(
         {
@@ -235,6 +240,7 @@ def run_uplift_models(
     scores_dir: Path = config.DATA_PROCESSED,
     n_resamples: int = N_RESAMPLES,
     outcomes: tuple[str, ...] = OUTCOMES,
+    grid: Grid = GRID,
 ) -> pd.DataFrame:
     """Run the uplift-model stage and write its tables, figures, scores and results section.
 
@@ -250,6 +256,8 @@ def run_uplift_models(
         Bootstrap resamples per ranking (tests pass fewer).
     outcomes : tuple of str
         Outcomes to model.
+    grid : Grid
+        Hyperparameter grid (the pipeline's fast mode passes a single point).
 
     Returns
     -------
@@ -264,7 +272,7 @@ def run_uplift_models(
     for arm in config.TREATMENTS:
         pair = treatment_pair(customers, arm)
         for outcome in outcomes:
-            scores = score_pair(pair, outcome, rng)
+            scores = score_pair(pair, outcome, rng, grid)
             score_tables.append(scores)
             evals = evaluate_rankings(scores, n_resamples)
             metric_tables.append(metrics_table(evals, arm, outcome))
@@ -272,7 +280,10 @@ def run_uplift_models(
             comparisons.append(comparison)
             title = f"{arm} vs control, {outcome}"
             qini_fig = plots.plot_qini_comparison(
-                {n: evals[n].curves for n in RANKINGS}, figures / f"qini_{arm}_{outcome}.png", title
+                {n: evals[n].curves for n in RANKINGS},
+                figures / f"qini_{arm}_{outcome}.png",
+                title,
+                comparison,
             )
             cal_fig = plots.plot_calibration_grid(
                 {n: evals[n].deciles for n in UPLIFT_LEARNERS},
@@ -318,7 +329,7 @@ def run_uplift_models(
             "uplift_learners": list(UPLIFT_LEARNERS),
             "baselines": list(BASELINES),
             "outcomes": list(outcomes),
-            "hyperparameter_grid": list(GRID),
+            "hyperparameter_grid": list(grid),
             "fixed_params": FIXED_PARAMS,
             "selection_metric": SELECTION_METRIC,
             "uplift_at_k": list(UPLIFT_AT_K),

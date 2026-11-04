@@ -54,6 +54,8 @@ FIXED_PARAMS: dict[str, Any] = {
     "min_samples_leaf": 50,
 }
 INNER_VALIDATION_FRACTION: float = 0.2
+#: A hyperparameter grid: one dict of ``HistGradientBoosting*`` parameters per candidate.
+Grid = tuple[dict[str, Any], ...]
 TREATMENT_FEATURE: str = "treated"
 
 
@@ -99,7 +101,7 @@ class FitResult:
 
 
 def _fit_best(
-    X: pd.DataFrame, y: np.ndarray, rng: np.random.Generator, classifier: bool
+    X: pd.DataFrame, y: np.ndarray, rng: np.random.Generator, classifier: bool, grid: Grid
 ) -> FitResult:
     y = np.asarray(y, dtype=float)
     if np.unique(y).size < 2:
@@ -114,7 +116,7 @@ def _fit_best(
         random_state=draw_seed(rng),
     )
     best: tuple[float, dict[str, Any]] | None = None
-    for params in GRID:
+    for params in grid:
         est = cls(**FIXED_PARAMS, **params, categorical_features=cat, random_state=draw_seed(rng))
         est.fit(X_fit, y_fit)
         if classifier:
@@ -129,7 +131,9 @@ def _fit_best(
     return FitResult(est, best[1], best[0], int(est.n_iter_))
 
 
-def fit_classifier(X: pd.DataFrame, y: np.ndarray, rng: np.random.Generator) -> FitResult:
+def fit_classifier(
+    X: pd.DataFrame, y: np.ndarray, rng: np.random.Generator, grid: Grid = GRID
+) -> FitResult:
     """Fit a gradient boosting classifier with grid selection on an inner split by log loss.
 
     Parameters
@@ -140,15 +144,19 @@ def fit_classifier(X: pd.DataFrame, y: np.ndarray, rng: np.random.Generator) -> 
         0/1 outcome.
     rng : numpy.random.Generator
         Source of the split and model seeds.
+    grid : Grid
+        Candidate hyperparameters; the pipeline's fast mode passes a single point.
 
     Returns
     -------
     FitResult
     """
-    return _fit_best(X, y, rng, classifier=True)
+    return _fit_best(X, y, rng, classifier=True, grid=grid)
 
 
-def fit_regressor(X: pd.DataFrame, y: np.ndarray, rng: np.random.Generator) -> FitResult:
+def fit_regressor(
+    X: pd.DataFrame, y: np.ndarray, rng: np.random.Generator, grid: Grid = GRID
+) -> FitResult:
     """Fit a gradient boosting regressor with grid selection on an inner split by squared error.
 
     Parameters
@@ -159,12 +167,14 @@ def fit_regressor(X: pd.DataFrame, y: np.ndarray, rng: np.random.Generator) -> F
         Continuous target (imputed individual effects for the X-learner).
     rng : numpy.random.Generator
         Source of the split and model seeds.
+    grid : Grid
+        Candidate hyperparameters; the pipeline's fast mode passes a single point.
 
     Returns
     -------
     FitResult
     """
-    return _fit_best(X, y, rng, classifier=False)
+    return _fit_best(X, y, rng, classifier=False, grid=grid)
 
 
 def _proba(fit: FitResult, X: pd.DataFrame) -> np.ndarray:
@@ -179,9 +189,12 @@ class SLearner:
     ----------
     rng : numpy.random.Generator
         Source of seeds. ``fits`` collects one :class:`FitResult` per call.
+    grid : Grid
+        Hyperparameter grid searched on the inner split.
     """
 
     rng: np.random.Generator
+    grid: Grid = GRID
     fits: list[FitResult] = field(default_factory=list)
 
     def __call__(
@@ -194,7 +207,10 @@ class SLearner:
         """Fit on the training rows and return predicted uplift for the test rows."""
         assert_pre_treatment_only(X_train.columns)
         fit = fit_classifier(
-            X_train.assign(**{TREATMENT_FEATURE: treated_train.astype(float)}), y_train, self.rng
+            X_train.assign(**{TREATMENT_FEATURE: treated_train.astype(float)}),
+            y_train,
+            self.rng,
+            self.grid,
         )
         self.fits.append(fit)
         return _proba(fit, X_test.assign(**{TREATMENT_FEATURE: 1.0})) - _proba(
@@ -213,6 +229,7 @@ class TLearner:
     """
 
     rng: np.random.Generator
+    grid: Grid = GRID
     fits: list[tuple[FitResult, FitResult]] = field(default_factory=list)
 
     def first_stage(
@@ -221,8 +238,8 @@ class TLearner:
         """Fit ``mu_1`` on treated rows and ``mu_0`` on control rows."""
         assert_pre_treatment_only(X_train.columns)
         t = np.asarray(treated_train) == 1
-        mu1 = fit_classifier(X_train.loc[t], y_train[t], self.rng)
-        mu0 = fit_classifier(X_train.loc[~t], y_train[~t], self.rng)
+        mu1 = fit_classifier(X_train.loc[t], y_train[t], self.rng, self.grid)
+        mu0 = fit_classifier(X_train.loc[~t], y_train[~t], self.rng, self.grid)
         self.fits.append((mu1, mu0))
         return mu1, mu0
 
@@ -252,6 +269,7 @@ class XLearner:
 
     rng: np.random.Generator
     p_treat: float
+    grid: Grid = GRID
     fits: list[dict[str, FitResult]] = field(default_factory=list)
 
     def __call__(
@@ -265,11 +283,11 @@ class XLearner:
         if not 0 < self.p_treat < 1:
             raise ValueError(f"p_treat must be in (0, 1), got {self.p_treat}.")
         t = np.asarray(treated_train) == 1
-        mu1, mu0 = TLearner(self.rng).first_stage(X_train, treated_train, y_train)
+        mu1, mu0 = TLearner(self.rng, self.grid).first_stage(X_train, treated_train, y_train)
         d1 = y_train[t] - _proba(mu0, X_train.loc[t])  # treated: observed minus counterfactual
         d0 = _proba(mu1, X_train.loc[~t]) - y_train[~t]  # control: counterfactual minus observed
-        tau1 = fit_regressor(X_train.loc[t], d1, self.rng)
-        tau0 = fit_regressor(X_train.loc[~t], d0, self.rng)
+        tau1 = fit_regressor(X_train.loc[t], d1, self.rng, self.grid)
+        tau0 = fit_regressor(X_train.loc[~t], d0, self.rng, self.grid)
         self.fits.append({"mu1": mu1, "mu0": mu0, "tau1": tau1, "tau0": tau0})
         g = self.p_treat
         return g * tau0.estimator.predict(X_test) + (1 - g) * tau1.estimator.predict(X_test)
@@ -286,6 +304,7 @@ class ResponseModel:
     """
 
     rng: np.random.Generator
+    grid: Grid = GRID
     fits: list[FitResult] = field(default_factory=list)
 
     def __call__(
@@ -298,7 +317,7 @@ class ResponseModel:
         """Fit on the treated training rows and return P(y = 1 | treated, x) for the test rows."""
         assert_pre_treatment_only(X_train.columns)
         t = np.asarray(treated_train) == 1
-        fit = fit_classifier(X_train.loc[t], y_train[t], self.rng)
+        fit = fit_classifier(X_train.loc[t], y_train[t], self.rng, self.grid)
         self.fits.append(fit)
         return _proba(fit, X_test)
 

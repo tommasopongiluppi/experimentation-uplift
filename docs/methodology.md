@@ -1259,3 +1259,40 @@ and the `seed_robustness` section of `results.json`.
   sampling uncertainty of the recency rule, but a reader should take the seed-to-seed
   range as the honest spread of the policy's value and the median across seeds, not the
   committed seed, as its central estimate.
+
+## Pipeline: stages, cache and fast mode
+
+**What it does.** `python -m abkit.pipeline run-all` runs every stage in dependency order,
+from the download to the validated `results.json`: data, validate, checks, frequentist,
+cuped, bayes, power, sequential, segments, uplift, policy, then report. The seed-robustness
+stage is left out unless `--with-robustness` is given, because it re-fits the cross-fitting
+nine more times. Each stage is cached: a fingerprint of its input files (the cleaned
+`customers` parquet, the uplift scores), the `results.json` sections it reads, the source
+files it depends on, the package version and its settings is stored in
+`data/pipeline_cache.json` with the runtime, and the stage is skipped when the fingerprint
+is unchanged and every output file and `results.json` section it writes still exists.
+`--force` ignores the cache. The report stage is never cached: it writes the `pipeline`
+section (mode, data, stages, sizes) and validates the whole file against the schema in
+`src/abkit/results_schema.py`, which also renders `docs/results_schema.md`.
+
+**Fast mode.** `--fast` replaces the simulation, bootstrap and seed counts with
+`config.FAST_SIZES`, models visit only in the uplift stage and searches a single
+hyperparameter point. Its numbers are for checking that the pipeline runs, not for the
+memo: the `pipeline` section of `results.json` records which sizes were used, so a fast run
+can never be mistaken for the full one. `--data` runs the same pipeline on another CSV,
+such as the synthetic fixture, with the row-count check off and the email budget scaled
+to the rows; `--out` moves every output under another directory so a fixture run never
+overwrites the real artifacts.
+
+**Figures.** Every figure's title is a sentence computed from the table behind it at plot
+time (counts of significant rows, the quoted probabilities and rates), never typed by hand,
+so a title can only state what the artifact says. One palette (the reference categorical
+slots for the arms, validated for colour-vision deficiency, with neutral inks and line
+styles once a figure has more than three series) and one type style are set in
+`abkit.plots`.
+
+**Tests.** The fast test suite runs `run-all --fast` on the fixture end to end, checks that
+every stage output exists, that `results.json` validates, that the budget scaled with the
+rows, that a second run skips every cached stage, and that removing an output or passing
+`--force` reruns only what it should. The schema tests check the committed `results.json`
+and that the rendered document matches the schema.

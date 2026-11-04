@@ -711,7 +711,7 @@ def run_segments(
     write_table(effects, TABLE_NAME, tables)
     write_table(interactions, INTERACTIONS_TABLE_NAME, tables)
     write_table(simulation, FDR_TABLE_NAME, tables)
-    plots.plot_segment_forest(effects, reports_dir / "figures" / FIGURE_NAME)
+    plots.plot_segment_forest(effects, reports_dir / "figures" / FIGURE_NAME, interactions)
     families = {
         f: {
             "adjustment": ADJUSTMENT,

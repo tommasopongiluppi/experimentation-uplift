@@ -1,6 +1,6 @@
 import abkit
 from abkit import config
-from abkit.pipeline import STEPS, build_parser
+from abkit.pipeline import STAGES, build_parser
 
 
 def test_version():
@@ -23,20 +23,6 @@ def test_budget():
 
 def test_pipeline_commands():
     parser = build_parser()
-    steps = [
-        "data",
-        "validate",
-        "checks",
-        "frequentist",
-        "cuped",
-        "bayes",
-        "power",
-        "sequential",
-        "segments",
-        "uplift",
-        "policy",
-        "robustness",
-    ]
-    for command in (*steps, "run-all"):
+    for command in (*STAGES, "run-all"):
         assert parser.parse_args([command]).command == command
-    assert list(STEPS) == steps
+    assert "robustness" in STAGES and STAGES["robustness"].optional
