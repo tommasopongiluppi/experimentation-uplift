@@ -315,3 +315,29 @@ it was made before or after seeing the outcome results.
   or conclusion changes materially. The choice could not have been made to favour a result,
   because `history` correlates so weakly with every outcome that CUPED barely moves any
   estimate under either reading.
+
+
+### D3. Bayesian rates: draws, a fourth prior strength, and the two outcomes the rule left open
+
+- **Date:** 2026-11-04. **Section:** §9. **Made after** outcomes were compared between arms:
+  the frequentist and CUPED readouts had been run when this entry was written; the Bayesian
+  readout had not.
+- **What changed.**
+  1. Each comparison uses **200,000 posterior draws per arm** instead of 20,000. This is a
+     precision choice: every Monte Carlo quantity is reported with its Monte Carlo standard
+     error, and more draws shrink that error by about a factor of three. Nothing else moves.
+  2. A **fourth shared-prior strength, n0 = 100,000** pseudo-customers, is reported after the
+     three pre-registered ones (100, 1,000, 10,000). It is a stress test, about five arm-sizes
+     of scepticism, added so that the ladder reaches the point where the shrinkage visibly bites.
+     The pre-registered priors are still reported in full.
+  3. §9 defines when to **ship** but not the other outcomes. They are fixed symmetrically:
+     **don't ship** if P(control better) ≥ 0.95 and the expected loss of keeping control is
+     below 1% of the control arm's mean; **keep testing** otherwise. The expected loss of
+     keeping control, E[max(θ_t − θ_c, 0)], is reported next to the expected loss of shipping.
+  4. For the rates the loss threshold is 1% of the **observed** control-arm rate (x_c / n_c),
+     the same number under every prior, rather than the posterior mean of the control rate.
+- **Why.** Items 1, 2 and 3 were requested at implementation time to make the readout more
+  precise and the sensitivity ladder longer; item 4 fixes an ambiguity. None of them changes a
+  pre-registered quantity, prior or threshold, and none could favour a result: the extra prior
+  is more sceptical, not less, and the ship criterion is untouched.
+

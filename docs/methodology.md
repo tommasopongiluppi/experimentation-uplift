@@ -440,3 +440,117 @@ true effect and confirms the Welch test, the two-proportion z-test and CUPED eac
 of 4,000 simulated experiments, within three Monte Carlo standard errors. On the fixture, the
 tables have one row per metric, level, CUPED flag (and lift), the design inputs equal the
 control arm's pandas mean and variance, and every output is written.
+
+## Beta-Binomial Bayesian readout for rates
+
+`abkit.bayes.posterior`, `abkit.bayes.compare_rates`, `abkit.bayes.prob_b_greater_a_exact`,
+`abkit.bayes.decide`; readout `abkit.bayes.run_bayes_rates`, outputs
+`reports/tables/readout_bayes_rates.csv`, the `bayes_rates` section of `reports/results.json` and
+`reports/figures/bayes_p_better_by_prior.png`.
+
+**What it does.** Answers the question a decision maker actually asks about conversion and visit:
+how likely is it that the email beats control, and how much do we expect to lose if we ship it
+and are wrong? Each arm's rate gets a Beta posterior; the two posteriors are compared on 200,000
+posterior draws per arm (analysis plan §9, Deviation D3), and the pre-registered decision rule is
+applied. This is the Bayesian counterpart of the two-proportion rows of the frequentist readout,
+run on the same successes and customers per arm from the SQL metric layer.
+
+**Formula.**
+- Posterior per arm: with prior Beta(α0, β0), x successes in n customers, the posterior is
+  Beta(α0 + x, β0 + n − x), with mean α / (α + β) and variance αβ / ((α + β)² (α + β + 1)).
+- Monte Carlo summaries, from independent draws p_t and p_c (`config.SEEDS["bayes"]`): the
+  posterior of the absolute lift p_t − p_c and of the relative lift p_t / p_c − 1, each with a
+  95% equal-tailed credible interval (2.5% and 97.5% quantiles of the draws); P(treatment better)
+  = P(p_t > p_c); the expected loss of shipping, E[max(p_c − p_t, 0)], the average shortfall if
+  the email is shipped and is in fact worse; and the expected loss of keeping control,
+  E[max(p_t − p_c, 0)]. The two losses differ by exactly the posterior mean of the difference.
+  The exact posterior mean and standard deviation of the difference (from the Beta formulas, the
+  arms being independent) are reported next to the Monte Carlo values.
+- Monte Carlo standard errors: sd / sqrt(N) for a mean; sqrt(p̃ (1 − p̃) / N) for a probability,
+  with the Agresti–Coull proportion p̃ = (k + 2) / (N + 4) so the error stays positive when all N
+  draws agree (the plug-in formula gives exactly zero there, which is wrong); and for a quantile
+  the order statistics at N q ± sqrt(N q (1 − q)), as for the bootstrap.
+- Exact P(p_B > p_A). For independent Betas with integer α_B (Miller 2015):
+  P(p_B > p_A) = Σ_{i=0}^{α_B − 1} B(α_A + i, β_A + β_B) / ((β_B + i) B(1 + i, β_B) B(α_A, β_A)).
+  The terms are summed on the log scale. For any parameters, the same probability is
+  ∫ f_B(x) F_A(x) dx by adaptive quadrature; every row of the table carries this exact value
+  next to the Monte Carlo one.
+- Decision rule (plan §9): **ship** if P(better) ≥ 0.95 and the expected loss of shipping is
+  below 1% of the control arm's rate; **don't ship** if the mirror image holds (P(control better)
+  ≥ 0.95 and the expected loss of keeping control is below the same threshold); **keep testing**
+  otherwise. The threshold is 1% of the observed control-arm rate (`config.BAYES_P_BETTER`,
+  `config.BAYES_LOSS_FRACTION`). For the rates the rule is reported for information; the primary
+  decision is on spend.
+
+**Assumptions.** Independent customers with a binomial outcome per arm, and independent
+posteriors across arms (the arms are disjoint sets of customers and the prior is set per arm).
+The conclusions depend on the prior, which is the point of the next section. With a flat prior
+and about 21,000 customers per arm the posterior is driven by the data: the credible interval
+coincides with the frequentist interval to a relative gap of order 1 / sqrt(n), under 1%.
+
+**How it is tested.**
+- The closed form gives 1/2 for two uniforms and 2/3 for Beta(2, 1) against a uniform (the mean of
+  a density 2x); it is symmetric (P(B > A) + P(A > B) = 1 to 1e-10) and matches the quadrature to
+  1e-8 for small, visit-sized and conversion-sized posteriors.
+- The Monte Carlo P(B > A) is within 3 Monte Carlo standard errors of the closed form for the
+  same six parameter sets; when every draw agrees, the adjusted standard error is positive and
+  still brackets the exact value.
+- Posterior parameters, means and variances equal the Beta formulas and `scipy.stats.beta`; the
+  Monte Carlo mean and standard deviation of the difference are within 3 MCSE of the exact ones;
+  the two expected losses differ by the Monte Carlo mean exactly.
+- With a flat prior and 21,000 customers per arm, every endpoint of the 95% credible interval
+  for the difference and for the relative lift is within 2% of the interval width of the
+  Newcombe and delta-method confidence intervals, at visit-like and conversion-like rates.
+- The decision rule returns each of the three outcomes on hand-chosen inputs, including the
+  boundary cases.
+- On the fixture: one row per metric, prior and comparison; successes, customers, posterior
+  parameters and thresholds match pandas; Monte Carlo P(better) is within 4 MCSE of the exact
+  value in all 30 rows at once (4 rather than 3 because 30 checks run together); the table,
+  figure and results section are written as strict JSON.
+- Slow, calibration: 2,000 experiments where the true rates of both arms are drawn from a
+  Beta(3, 20) prior, 2,000 customers per arm are simulated, and the posterior uses that same
+  prior. The 95% credible intervals for the difference and for the relative lift contain the
+  truth 95% of the time, within 3 Monte Carlo standard errors, and the average P(better) equals
+  the share of experiments where the treatment really is better, within 3 MCSE of the paired
+  difference. This is the frequentist property a correct Bayesian interval must have when the
+  prior is true.
+
+## Prior sensitivity
+
+`abkit.bayes.shared_prior`, `abkit.bayes.rate_priors`; the `prior` column of
+`reports/tables/readout_bayes_rates.csv` and `reports/figures/bayes_p_better_by_prior.png`.
+
+**What it does.** Repeats the whole Bayesian readout under five priors and reports, for each,
+P(better), both expected losses, the credible interval and the decision. The primary analysis
+uses the flat Beta(1, 1). The sensitivity analyses use a **shared informative prior**: the same
+Beta for every arm, with mean equal to the rate pooled across all three arms and strength
+n0 = α0 + β0 ∈ {100, 1,000, 10,000, 100,000} pseudo-customers (the first three pre-registered in
+plan §9, the fourth added as a stress test in Deviation D3). The pooled mean uses the data, but
+symmetrically, so it cannot favour either email.
+
+**Formula.** α0 = n0 · p̄ and β0 = n0 · (1 − p̄). Because every arm gets the same prior, each
+posterior mean is pulled toward p̄ by the same amount, and with equal arm sizes n the posterior
+mean difference is exactly (x_t − x_c) / (n + n0): the observed difference shrunk by the factor
+n / (n + n0). At n0 = 100 the shrinkage is under 1% and the prior is invisible; at
+n0 = 100,000, about five arm-sizes of pseudo-customers, the difference is shrunk to about a sixth
+and P(better) moves toward 1/2. The prior is sceptical by construction: it has to be overcome by
+the data, and the strength at which a conclusion flips is the honest measure of how robust that
+conclusion is.
+
+**Why this matters.** A Bayesian conclusion is a function of the prior as much as of the data,
+and a single posterior probability hides that dependence. Reporting P(better) across a ladder of
+prior strengths turns "the email wins with probability 0.98" into "the email wins under any prior
+weaker than N pseudo-customers", which is the statement a sceptical reader can check against
+their own beliefs. This is the same question the author's MSc thesis addressed, Bayesian
+inference and the sensitivity of conclusions to the prior: there, the question was how far a
+conclusion survives as the prior is moved; here, the ladder of shared priors is that analysis in
+its simplest conjugate form. The effect that survives the strongest sceptical prior is the one to
+act on; an effect that vanishes at n0 = 1,000 was never more than a suggestion. The Bayesian
+bootstrap for spend has no tunable prior, so its sensitivity check is the winsorised analysis
+(plan §8).
+
+**How it is tested.** The shared prior has the requested mean and strength and the labels
+`flat`, `shared_100`, …; invalid rates and strengths raise. With equal arms the posterior mean
+difference equals (x_t − x_c) / (n + n0) to 1e-12, decreases monotonically along the ladder
+100 → 1,000,000, and P(better) falls toward 1/2 while staying above it. On the fixture the flat
+prior rows have prior mean 1/2 and every shared row has the pooled rate as its prior mean.

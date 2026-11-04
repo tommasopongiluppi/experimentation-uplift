@@ -516,3 +516,87 @@ def plot_power_curve(curve: pd.DataFrame, mdes: pd.DataFrame, path: Path) -> Pat
         )
         fig.legend(loc="outside lower center", ncol=2)
         return save(fig, path)
+
+
+def _prior_label(prior: str, strength: float) -> str:
+    return "Flat\nBeta(1, 1)" if prior == "flat" else f"Shared\nn₀ = {strength:,.0f}"
+
+
+def plot_p_better_by_prior(
+    table: pd.DataFrame, path: Path, threshold: float = config.BAYES_P_BETTER
+) -> Path:
+    """P(first arm better) against prior strength, one panel per rate metric.
+
+    Parameters
+    ----------
+    table : pandas.DataFrame
+        Output of :func:`abkit.bayes.build_bayes_rates`: columns ``metric``, ``prior``,
+        ``prior_strength``, ``treatment``, ``control`` and ``p_better``.
+    path : Path
+        Output PNG path.
+    threshold : float
+        The decision rule's P(better) line, drawn dotted.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    metrics = list(dict.fromkeys(table["metric"]))
+    priors = list(dict.fromkeys(zip(table["prior"], table["prior_strength"], strict=True)))
+    comparisons = list(dict.fromkeys(zip(table["treatment"], table["control"], strict=True)))
+    colours = {
+        (t, c): (config.ARM_COLORS[t] if c == config.CONTROL else TEXT_SECONDARY)
+        for t, c in comparisons
+    }
+    # Series often coincide (several probabilities are 1 to many decimals), so each comparison
+    # is dodged slightly along the categorical axis and gets its own marker shape.
+    x = np.arange(len(priors))
+    markers = ("o", "s", "D")
+    dodge = 0.1 * (np.arange(len(comparisons)) - (len(comparisons) - 1) / 2)
+    with styled():
+        fig = Figure(figsize=(10.0, 4.4), layout="constrained")
+        axes = fig.subplots(1, len(metrics), squeeze=False, sharey=True).ravel()
+        for ax, metric in zip(axes, metrics, strict=True):
+            part = table[table["metric"] == metric].set_index(["prior", "treatment", "control"])
+            for k, (t, c) in enumerate(comparisons):
+                y = [part.loc[(p, t, c), "p_better"] for p, _ in priors]
+                ax.plot(
+                    x + dodge[k],
+                    y,
+                    marker=markers[k % len(markers)],
+                    markersize=6,
+                    markeredgecolor=SURFACE,
+                    color=colours[(t, c)],
+                    linewidth=1.8,
+                    label=f"{t} vs {c}" if ax is axes[0] else None,
+                    zorder=3,
+                )
+            ax.axhline(threshold, color=TEXT_SECONDARY, linestyle=":", linewidth=1.0)
+            ax.axhline(0.5, color=TEXT_SECONDARY, linewidth=0.8)
+            ax.text(
+                x[-1] + 0.3,
+                threshold - 0.02,
+                f"{threshold:.0%} ship threshold",
+                ha="right",
+                va="top",
+                fontsize=9,
+                color=TEXT_SECONDARY,
+            )
+            ax.set_ylim(0, 1.04)
+            ax.set_xlim(-0.4, len(priors) - 0.6)
+            ax.set_xticks(x, [_prior_label(p, s) for p, s in priors])
+            ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda v, _: f"{v:.0%}"))
+            ax.grid(axis="x", visible=False)
+            ax.set_title(FOREST_METRIC_LABELS.get(metric, metric), fontsize=11)
+            ax.set_xlabel("Prior (shared priors centred on the pooled rate)")
+        axes[0].set_ylabel("P(first arm better)")
+        fig.suptitle(
+            "Posterior probability that the first arm is better, by prior strength",
+            x=0.01,
+            ha="left",
+            fontweight="bold",
+            fontsize=13,
+        )
+        fig.legend(loc="outside lower center", ncol=len(comparisons))
+        return save(fig, path)

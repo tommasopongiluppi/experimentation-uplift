@@ -91,6 +91,10 @@ ALPHA: float = 0.05
 SRM_ALPHA: float = 0.001  # analysis plan §5: SRM p below this blocks the readout
 SMD_THRESHOLD: float = 0.1  # analysis plan §5: |SMD| above this is flagged
 BUDGET: int = 10_000
+# Bayesian decision rule (analysis plan §9): ship if P(better) >= BAYES_P_BETTER and the expected
+# loss of shipping is below BAYES_LOSS_FRACTION of the control arm's mean.
+BAYES_P_BETTER: float = 0.95
+BAYES_LOSS_FRACTION: float = 0.01
 
 # Figures: categorical slots 1-3 of the reference palette, fixed per arm across the project
 ARM_COLORS: dict[str, str] = {"mens": "#2a78d6", "womens": "#eb6834", "control": "#1baf7a"}

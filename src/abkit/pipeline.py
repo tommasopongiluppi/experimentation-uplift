@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable
 
 from abkit import config
+from abkit.bayes import run_bayes_rates
 from abkit.data import download_raw, load_to_duckdb
 from abkit.eda import run_checks
 from abkit.power import run_power
@@ -64,6 +65,17 @@ def run_adjusted() -> None:
     run_cuped()
 
 
+def run_bayesian() -> None:
+    """Run the Bayesian readout of the rates, writing its table, section and figure.
+
+    Raises
+    ------
+    abkit.eda.SRMError
+        If the sample ratio mismatch check fails.
+    """
+    run_bayes_rates()
+
+
 def run_design() -> None:
     """Run the MDE, sample-size and power-curve calculations and write their outputs."""
     run_power()
@@ -82,6 +94,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "checks": run_validity,
     "frequentist": run_readout,
     "cuped": run_adjusted,
+    "bayes": run_bayesian,
     "power": run_design,
 }
 
@@ -101,6 +114,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("checks", help="SRM and balance checks plus pooled EDA.")
     sub.add_parser("frequentist", help="Frequentist readout of every comparison and metric.")
     sub.add_parser("cuped", help="CUPED and Lin regression-adjusted estimates.")
+    sub.add_parser("bayes", help="Bayesian Beta-Binomial readout of conversion and visit.")
     sub.add_parser("power", help="Minimum detectable effects, sample sizes and power curves.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
