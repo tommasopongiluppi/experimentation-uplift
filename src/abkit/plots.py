@@ -600,3 +600,90 @@ def plot_p_better_by_prior(
         )
         fig.legend(loc="outside lower center", ncol=len(comparisons))
         return save(fig, path)
+
+
+# Models in the spend-posterior figure: the primary analysis is a filled density, the
+# parametric cross-check a dashed outline. Both take the comparison's colour (arm colour vs
+# control, neutral for mens vs womens); line style is the second encoding.
+SPEND_MODEL_LABELS: dict[str, str] = {
+    "bayesian_bootstrap": "Bayesian bootstrap (primary)",
+    "two_part_lognormal": "Two-part log-normal (cross-check)",
+}
+
+
+def plot_spend_posterior(hist: pd.DataFrame, table: pd.DataFrame, path: Path) -> Path:
+    """Posterior densities of the difference in spend per customer, one panel per comparison.
+
+    Parameters
+    ----------
+    hist : pandas.DataFrame
+        Binned densities with columns ``model``, ``comparison``, ``bin_left``, ``bin_right``
+        and ``density`` (raw spend).
+    table : pandas.DataFrame
+        Output of :func:`abkit.bayes.build_bayes_spend` (first element); the raw-spend
+        Bayesian bootstrap rows supply the credible interval and P(better) annotations.
+    path : Path
+        Output PNG path.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    comparisons = list(dict.fromkeys(hist["comparison"]))
+    models = list(dict.fromkeys(hist["model"]))
+    primary = table[(table["model"] == "bayesian_bootstrap") & (table["metric"] == "spend")]
+    primary = primary.set_index("comparison")
+    with styled():
+        fig = Figure(figsize=(8.0, 1.9 * len(comparisons) + 1.6), layout="constrained")
+        axes = fig.subplots(len(comparisons), 1, squeeze=False, sharex=True).ravel()
+        for ax, comparison in zip(axes, comparisons, strict=True):
+            t, c = comparison.split("_vs_")
+            colour = config.ARM_COLORS[t] if c == config.CONTROL else TEXT_SECONDARY
+            for model in models:
+                part = hist[(hist["model"] == model) & (hist["comparison"] == comparison)]
+                x = np.append(part["bin_left"].to_numpy(), part["bin_right"].iloc[-1])
+                y = np.append(part["density"].to_numpy(), part["density"].iloc[-1])
+                label = SPEND_MODEL_LABELS.get(model, model) if ax is axes[0] else None
+                if model == "bayesian_bootstrap":
+                    ax.fill_between(x, y, step="post", color=colour, alpha=0.25, linewidth=0)
+                    ax.step(x, y, where="post", color=colour, linewidth=1.6, label=label)
+                else:
+                    ax.step(
+                        x, y, where="post", color=colour, linewidth=1.4, linestyle="--", label=label
+                    )
+            r = primary.loc[comparison]
+            ax.plot(
+                [r["ci_low"], r["ci_high"]],
+                [0, 0],
+                color=colour,
+                linewidth=3.0,
+                solid_capstyle="butt",
+                zorder=3,
+            )
+            ax.axvline(0, color=TEXT_SECONDARY, linewidth=0.9)
+            ax.text(
+                0.99,
+                0.92,
+                f"{t} vs {c}\nP(first arm better) = {r['p_better']:.3f}",
+                transform=ax.transAxes,
+                ha="right",
+                va="top",
+                fontsize=10,
+            )
+            ax.set_yticks([])
+            ax.grid(axis="y", visible=False)
+            ax.set_ylabel("Density")
+        axes[-1].xaxis.set_major_formatter(
+            mpl.ticker.FuncFormatter(lambda v, _: f"{'-' if v < 0 else '+'}${abs(v):.2f}")
+        )
+        axes[-1].set_xlabel("Difference in mean spend per customer (first arm minus second)")
+        fig.suptitle(
+            "Posterior of the difference in spend per customer (bar: 95% credible interval)",
+            x=0.01,
+            ha="left",
+            fontweight="bold",
+            fontsize=13,
+        )
+        fig.legend(loc="outside lower center", ncol=2)
+        return save(fig, path)

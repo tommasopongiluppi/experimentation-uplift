@@ -554,3 +554,228 @@ bootstrap for spend has no tunable prior, so its sensitivity check is the winsor
 difference equals (x_t − x_c) / (n + n0) to 1e-12, decreases monotonically along the ladder
 100 → 1,000,000, and P(better) falls toward 1/2 while staying above it. On the fixture the flat
 prior rows have prior mean 1/2 and every shared row has the pooled rate as its prior mean.
+
+## Bayesian bootstrap for spend per customer
+
+`abkit.bayes.bayesian_bootstrap_means`, `abkit.bayes.bayesian_bootstrap_moments`,
+`abkit.bayes.compare_means`, `abkit.bayes.recommend`; readout `abkit.bayes.run_bayes_spend`,
+outputs `reports/tables/readout_bayes_spend.csv`, the `bayes_spend` section of
+`reports/results.json` and `reports/figures/bayes_spend_diff_posterior.png` (its binned densities
+are in `reports/tables/bayes_spend_posterior_hist.csv`).
+
+**What it does.** The Bayesian answer on the primary metric, spend per customer (analysis plan
+§9): the posterior of the difference in mean spend between each email and control (and mens vs
+womens), its 95% credible interval, P(email better), the expected loss in dollars per customer of
+shipping it when it is in fact worse, and the same numbers per 10,000 emails sent. The
+pre-registered decision rule is applied, and if both emails qualify the one with the higher
+posterior mean spend is recommended with P(mens > womens) reported alongside. Raw spend is the
+primary analysis; the same model on winsorised spend (plan §8) is the sensitivity analysis, since
+the Bayesian bootstrap has no tunable prior.
+
+**Formula.** The Bayesian bootstrap (Rubin 1981) treats the n customers of an arm as the support
+of the population and puts a flat Dirichlet(1, …, 1) posterior on the probability of each one:
+a posterior draw of the arm's mean spend is Σ w_i y_i with w ~ Dirichlet(1, …, 1). It is the
+Bayesian twin of the percentile bootstrap: the ordinary bootstrap draws multinomial counts with
+mean 1, the Bayesian bootstrap draws continuous weights with mean 1/n.
+- **Collapsing the zeros, exactly.** About 99% of customers spend nothing, so most of the n
+  weights multiply a zero. If the value v occurs c_v times, only the total weight on v,
+  W_v = Σ_{i: y_i = v} w_i, matters: Σ w_i y_i = Σ_v W_v v. By the aggregation property of the
+  Dirichlet distribution (summing the components of a Dirichlet(α_1, …, α_n) over disjoint groups
+  gives a Dirichlet with the group sums as parameters), (W_v)_v ~ Dirichlet(c_v)_v, so the
+  zero-spend customers collapse into one component with parameter n_zero, and the ties among
+  converters (the $29.99 floor, the $499 cap) collapse the same way. The implementation draws a
+  Dirichlet over the distinct values with their counts as parameters: the same posterior as the
+  n-dimensional one, at the cost of a few hundred numbers per draw instead of 21,000.
+- **Exact posterior moments.** E[w_i] = 1/n, Var(w_i) = (n − 1) / (n² (n + 1)) and
+  Cov(w_i, w_j) = −1 / (n² (n + 1)), so the posterior mean of the arm's mean is the sample mean ȳ
+  exactly and its posterior variance is Σ (y_i − ȳ)² / (n (n + 1)), the squared standard error
+  times (n − 1) / (n + 1). These are reported next to the Monte Carlo values; the Bayesian
+  bootstrap is, to order 1/n, the sampling distribution of the mean.
+- **Comparisons.** Each arm is drawn once (200,000 draws, `config.SEEDS["bayes"] + 1`) and
+  reused across its comparisons, so the three comparisons share one joint posterior. The
+  summaries and their Monte Carlo standard errors are those of the rate readout: credible
+  interval from the 2.5% and 97.5% quantiles, P(better), the expected loss of shipping
+  E[max(θ_c − θ_t, 0)] and of keeping control E[max(θ_t − θ_c, 0)] in dollars per customer, and
+  the posterior median. The incremental revenue per 10,000 emails is the difference, its interval
+  and the expected loss multiplied by 10,000 (`config.BUDGET`).
+- **Decision rule** (plan §9): ship if P(better) ≥ 0.95 and the expected loss of shipping is
+  below 1% of the observed control-arm mean spend; don't ship on the mirror image; keep testing
+  otherwise (Deviation D3 for the two outcomes the plan left open). If both emails qualify, the
+  higher posterior mean spend wins and P(mens > womens) is reported next to it.
+
+**Assumptions.** Customers are independent and the sample is the population's support: the
+posterior cannot put mass on spend values that nobody in the sample reached, so it says nothing
+about orders above the $499 top-code. The flat Dirichlet is a prior on the empirical
+distribution, not on a parameter, which is why there is no prior-strength ladder here. With
+about 21,000 customers per arm and 120 to 270 converters the posterior of the mean is close to
+normal and the credible interval tracks the Welch and percentile-bootstrap intervals; with a
+handful of converters it would be noticeably skewed and the intervals would differ.
+
+**How it is tested.**
+- On 40 customers with 8 converters (including ties), the collapsed bootstrap and the naive
+  40-dimensional Dirichlet agree: both means are within 3 Monte Carlo standard errors of the
+  exact posterior mean, both standard deviations within 3 MCSE (kurtosis-based) of the exact
+  posterior standard deviation, every quantile from 2.5% to 97.5% agrees within 3 combined
+  quantile MCSEs, and a two-sample Kolmogorov–Smirnov test does not tell the two samples apart.
+- With one converter among 200 customers the mean is v · W with W ~ Beta(1, 199), and the Monte
+  Carlo quantiles match that closed form within 3 MCSE.
+- At n = 20,000 with 200 converters the exact posterior mean equals the sample mean, the exact
+  posterior standard deviation equals the standard error times sqrt((n − 1) / (n + 1)) (within
+  0.01% of the SE), and the Monte Carlo mean and standard deviation match the exact values
+  within 3 MCSE.
+- A planted effect between two simulated arms is recovered: the exact difference is the
+  difference of sample means, the Monte Carlo difference is within 3 MCSE of it, the two expected
+  losses differ by the Monte Carlo mean exactly, and identical arms give P(better) = 1/2 within
+  Monte Carlo error.
+- The tie-break returns the higher posterior mean when both emails qualify, the single
+  qualifying email when one does, and none when neither does, ignoring the winsorised and
+  two-part rows.
+- On the fixture: one row per model, metric and comparison; customers, converters, means,
+  thresholds and decisions match pandas; the exact and Monte Carlo differences agree within
+  4 MCSE across all rows; the per-10,000 columns are the per-customer ones times the budget;
+  the binned densities integrate to 1; the tables, figure and results section are written as
+  strict JSON.
+
+## Two-part log-normal cross-check and posterior predictive check
+
+`abkit.bayes.nig_posterior`, `abkit.bayes.draw_nig`, `abkit.bayes.two_part_draws`,
+`abkit.bayes.posterior_predictive_check`; the `two_part_lognormal` rows of
+`reports/tables/readout_bayes_spend.csv`, `reports/tables/bayes_spend_ppc.csv` and the `arms`
+and `ppc` lists of the `bayes_spend` section.
+
+**What it does.** A parametric second opinion on the Bayesian bootstrap, which is
+non-parametric. Mean spend per customer is written as (probability of buying) × (mean spend
+among buyers), each part gets a conjugate model, and the posterior of the product is compared
+with the bootstrap's. A posterior predictive check then asks whether the log-normal actually
+reproduces the observed converters' spend, in particular its tail, and the answer is reported
+whatever it is.
+
+**Formula.**
+- Conversion: x converters in n customers, flat Beta(1, 1) prior, posterior Beta(1 + x,
+  1 + n − x), as in the rate readout.
+- Spend among converters: log spend ~ Normal(μ, σ²) with a Normal-Inverse-Gamma prior,
+  σ² ~ Inverse-Gamma(α0, β0) and μ | σ² ~ Normal(μ0, σ² / κ0). With k converters of log-spend
+  mean x̄ and sum of squares S: κ_n = κ0 + k, μ_n = (κ0 μ0 + k x̄) / κ_n, α_n = α0 + k / 2,
+  β_n = β0 + S / 2 + κ0 k (x̄ − μ0)² / (2 κ_n). The marginal of μ is Student-t with 2 α_n degrees
+  of freedom, centre μ_n and scale sqrt(β_n / (α_n κ_n)); the marginal of σ² is
+  Inverse-Gamma(α_n, β_n). The prior is weak and the same for every arm: μ0 = 0, κ0 = α0 = β0 =
+  0.01, a hundredth of a pseudo-observation, so the posterior sits on the maximum-likelihood fit.
+- Mean spend per customer: p · exp(μ + σ² / 2), drawn as a product of independent posterior
+  draws (p; then σ², then μ | σ²). The difference between arms is summarised exactly as for the
+  bootstrap. One caveat is reported with it: under an Inverse-Gamma posterior for σ² the exact
+  posterior mean of exp(σ² / 2) is infinite (the Inverse-Gamma tail decays polynomially), so the
+  Monte Carlo mean is the mean of the bulk; the posterior median and the credible interval are
+  unaffected, and the table carries both. The exact-moment columns are left empty for these rows.
+- Posterior predictive check, per arm: for 4,000 posterior draws of (μ, σ²), a replicate
+  dataset of the arm's k converters is simulated from the fitted log-normal, and the mean,
+  median, 90th, 95th and 99th percentiles, maximum, share at or above the $499 cap and share at
+  or below the $29.99 floor are computed for the replicates and for the data. Each statistic
+  gets a posterior predictive interval and p-value, P(replicate ≥ observed); p-values near 0 or
+  1 mean the model does not reproduce that feature. The model's implied P(spend ≥ 499) =
+  E_post[1 − Φ((log 499 − μ) / σ)] is reported next to the observed share of converters at
+  exactly $499.
+
+**What the check shows on the real data** (the values are in `bayes_spend_ppc.csv`; read them
+there). The log-normal reproduces the mean, the median and the upper percentiles of converters'
+spend within their posterior predictive intervals in every arm, and its implied probability of
+reaching $499 is of the same order as the observed share of converters sitting at the cap. Where
+it fails, and fails clearly, is the left tail: the share of converters at or below the $29.99
+floor is about twice what the log-normal predicts, with posterior predictive p-values at or near
+zero in every arm. The data have a point mass at the floor (the cheapest order), and a continuous
+model has no such mass. The cap shows up more gently: the observed maximum sits at the cap in
+every arm and low in the predictive distribution of the maximum, and the 99th percentile is
+pinned at $499 where the model expects a spread of values above it.
+
+**What the top-coding does to the parametric model.** The log-normal is fitted to the capped
+values as if they were exact, so every order above $499 enters the likelihood as $499. That
+pulls μ and σ² down relative to the uncapped distribution, so exp(μ + σ² / 2) understates the
+mean of true spend. At the same time the fitted log-normal keeps a tail above $499 that the data
+cannot have, so as an estimate of the mean of **top-coded** spend, which is what the bootstrap
+and the frequentist readout estimate, it is pulled the other way. The two biases partly offset,
+and with 2% of converters at the cap both are small next to the posterior spread, which is why
+the two models agree here. The proper fix is a censored likelihood for the values at $499
+(treating them as "at least $499"), which is no longer conjugate and would still rest on the
+log-normal shape, which the floor already contradicts. The bootstrap needs none of this: it
+estimates the mean of spend as recorded, and the plan states the top-code as a limitation of
+every spend effect (plan §8).
+
+**Assumptions.** Independent customers; conversion and spend among converters independent given
+the data (true of the likelihood factorisation, and a modelling choice for the priors);
+log-normal spend among converters, which the check above rejects in the left tail. The
+cross-check is reported next to the bootstrap, never in its place.
+
+**How it is tested.**
+- The conjugate update matches a hand-computed posterior (prior (0, 1, 1, 1) and data 1, 2, 3
+  give κ_n = 4, μ_n = 1.5, α_n = 2.5, β_n = 3.5) and its derived moments; invalid priors and
+  empty data raise.
+- Monte Carlo draws of μ and σ² match their Student-t and Inverse-Gamma marginals from
+  `scipy.stats` in mean and in the 2.5%, 50% and 97.5% quantiles, within 3 MCSE.
+- On 400,000 simulated customers with p = 0.02 and log-normal spend (μ = 4.4, σ = 0.7), the
+  posterior centres on the maximum-likelihood fit, the true p, μ, σ², mean spend per customer and
+  mean spend among converters all lie within 4 posterior standard deviations of their posterior
+  means, and the conversion posterior has the right Beta parameters.
+- The posterior predictive check on truly log-normal data gives p-values between 0.01 and 0.99
+  for every statistic, observed values inside every predictive interval and an implied tail
+  probability within 25% of the truth; heaping a quarter of converters on the floor drives the
+  floor statistic's p-value below 0.01.
+- When spend really is log-normal and the arms are large (200,000 customers each), the bootstrap
+  and two-part posteriors of the difference agree: centres within a tenth of a posterior
+  standard deviation, spreads within 10%, P(better) within 0.02 and interval endpoints within
+  0.15 posterior standard deviations. On the fixture, whose spend is Gamma with 10 to 30
+  converters per arm, the two models are allowed to disagree, and the table carries both rows.
+
+## Frequentist and Bayesian readouts: when they agree, when they could not, and what each answers
+
+The spend readout now exists three times: Welch's interval with Holm-adjusted p-values
+(`readout_frequentist.csv`), the percentile bootstrap next to it, and the Bayesian bootstrap
+with P(better) and expected loss (`readout_bayes_spend.csv`). They are built to be compared.
+
+**What question each one answers.** The frequentist p-value answers: *if the email had no
+effect, how often would data this extreme appear?* It is a statement about the procedure's error
+rates over imagined repetitions, and the Holm correction keeps the chance of any false claim in
+the primary family at 5%. The confidence interval is the set of effects the data do not reject
+at that level. The Bayesian posterior answers: *given these data and a flat prior, what is the
+probability that the email is better, and by how much?* P(better) is a probability about the
+effect, which the p-value is not, and the expected loss turns the posterior into a decision by
+weighing how wrong shipping could be in dollars, which no p-value does. The credible interval
+is the set of effects that hold 95% of the posterior probability.
+
+**When they agree.** Here, and in any large randomised test with a flat prior. With about
+21,000 customers per arm the posterior of the mean is driven by the data: the Bayesian
+bootstrap's posterior mean is the sample mean exactly, its posterior standard deviation is the
+standard error times sqrt((n − 1) / (n + 1)), and its credible interval, the Welch interval and
+the percentile-bootstrap interval differ by a small fraction of their width (compare the spend
+rows of the two tables). One minus P(better) is then numerically close to the
+one-sided p-value, so P(better) ≥ 0.95 and a one-sided p below 0.05 pick out the same effects.
+Under those conditions the two readouts are the same arithmetic read in two languages, and
+reporting both costs nothing but adds the decision layer: the expected loss and the revenue per
+10,000 emails are what a stakeholder can act on.
+
+**When they could disagree.**
+- *Priors with weight.* The rate readout shows it: under a shared prior worth a few arm-sizes of
+  pseudo-customers the posterior difference shrinks toward zero and P(better) drops while the
+  frequentist p-value, which has no prior, stays put. The Bayesian bootstrap has no such knob;
+  its sensitivity check is winsorisation.
+- *Multiple comparisons.* The frequentist readout adjusts p-values within families (Holm, BH);
+  the posterior probabilities are not adjusted and each comparison is read on its own. An effect
+  can be significant unadjusted, non-significant after Holm, and still have P(better) above 0.95.
+  The decision rule's loss threshold, not a multiplicity correction, is what keeps the Bayesian
+  readout from shipping on noise, and it does not control a family-wise error rate.
+- *Small samples and skew.* With a handful of converters the posterior of a mean is skewed and
+  the credible interval is asymmetric where the Welch interval is symmetric; the two can then
+  cover different ranges and reach different conclusions near the boundary. The fixture, with
+  10 to 30 converters per arm, is where the bootstrap and the parametric two-part model are
+  allowed to disagree even on the sign of an effect.
+- *Different estimands.* The two-part model estimates a log-normal mean; the bootstrap and Welch
+  estimate the mean of the recorded, top-coded spend. When the model is wrong in the tail,
+  as the posterior predictive check shows it is at the floor, they estimate different things
+  and the gap is model error, not sampling error.
+- *Sequential looks.* A posterior is the same whenever it is computed; a p-value is not, which
+  is the subject of the peeking simulations. A Bayesian readout under optional stopping still
+  shifts P(better) across the threshold more often than the posterior suggests, so the rule here
+  is applied once, to the final snapshot.
+
+**How it is reported.** Both readouts are written in full, the frequentist one is the
+pre-registered headline for Q2 (plan §6), and the Bayesian one carries the decision rule for
+Q1 (plan §9). Where they agree, the README says so with both numbers; where they would not,
+the reason above is the explanation to give.

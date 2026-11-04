@@ -341,3 +341,37 @@ it was made before or after seeing the outcome results.
   pre-registered quantity, prior or threshold, and none could favour a result: the extra prior
   is more sceptical, not less, and the ship criterion is untouched.
 
+
+
+### D4. Bayesian spend: draws, a parametric cross-check and the per-10,000 rescaling
+
+- **Date:** 2026-11-04. **Section:** §9. **Made after** outcomes were compared between arms:
+  the frequentist, CUPED and Bayesian-rate readouts had all been run when this entry was written;
+  the Bayesian spend readout had not.
+- **What changed.**
+  1. The Bayesian bootstrap uses **200,000 posterior draws per arm** instead of 4,000, for the
+     same reason as D3 item 1: every Monte Carlo quantity carries its standard error and the
+     extra draws shrink it. Each arm is drawn once and reused across its comparisons, so the
+     three comparisons share one joint posterior rather than being drawn separately.
+  2. A **parametric two-part cross-check** is reported next to the bootstrap, never in its
+     place: conversion ~ Beta-Binomial with the flat prior, log spend among converters ~ Normal
+     with a weak Normal-Inverse-Gamma prior (μ0 = 0, κ0 = α0 = β0 = 0.01, the same for every
+     arm), mean spend per customer = p · exp(μ + σ² / 2), with a posterior predictive check of the
+     log-normal against the observed converters, including the share at the $499 top-code. It
+     runs on raw spend only. It has no role in the decision; it tests whether a parametric model
+     agrees with the non-parametric one, and the check is reported whatever it shows.
+  3. The decision rule's loss threshold is 1% of the **observed** control-arm mean spend of the
+     same metric (the sample mean, as D3 item 4 fixed for the rates), rather than its posterior
+     mean. Under the Bayesian bootstrap the two are identical, so this only matters for the
+     cross-check rows, where the same threshold is used.
+  4. The posterior of the difference, its interval and the expected loss are **also expressed
+     per 10,000 emails sent** (the Q3 budget), by multiplying the per-customer values by 10,000.
+     This is a rescaling for the README, not a new quantity.
+  5. Raw versus winsorised spend is handled as the plan says: raw spend is the primary Bayesian
+     analysis and the same bootstrap on winsorised spend is its sensitivity analysis (§8, §9).
+     No change there.
+- **Why.** Items 1, 2 and 4 were requested at implementation time; item 3 fixes an ambiguity
+  the same way D3 did. None of them changes a pre-registered quantity, prior, threshold or
+  metric, and none could favour a result: the cross-check cannot overrule the bootstrap, and the
+  threshold definition is the one the plan describes ("the control mean is computed at readout
+  time").
