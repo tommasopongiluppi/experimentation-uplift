@@ -299,11 +299,16 @@ def test_score_pair_columns(customers):
     pair = treatment_pair(customers.head(1_200), "mens")
     rng = np.random.default_rng(1)
     scores = score_pair(pair, "visit", rng)
-    assert len(scores) == pair.n
+    assert len(scores) == pair.n + pair.n_other
+    assert scores["in_pair"].sum() == pair.n
     assert set(RANKINGS) <= set(scores.columns)
     assert scores[list(RANKINGS)].notna().all().all()
-    assert set(scores["fold"]) == set(range(5))
-    np.testing.assert_array_equal(scores["y"], pair.outcomes["visit"])
+    in_pair = scores[scores["in_pair"]]
+    assert set(in_pair["fold"]) == set(range(5))
+    np.testing.assert_array_equal(in_pair["y"], pair.outcomes["visit"])
+    other = scores[~scores["in_pair"]]
+    assert (other["fold"] == -1).all() and (other["treated"] == -1).all()
+    np.testing.assert_array_equal(other["customer_id"], pair.other_customer_id)
 
 
 def test_run_uplift_models_writes_outputs(fixture_db, customers, tmp_path):
@@ -329,9 +334,10 @@ def test_run_uplift_models_writes_outputs(fixture_db, customers, tmp_path):
         assert (tmp_path / "figures" / f"qini_{arm}_visit.png").stat().st_size > 0
         assert (tmp_path / "figures" / f"calibration_{arm}_visit.png").stat().st_size > 0
     scores = pd.read_parquet(tmp_path / "processed" / "uplift_scores.parquet")
+    assert len(scores) == len(config.TREATMENTS) * len(customers)  # every customer, per pair
     counts = customers[config.ARM_COL].value_counts()
     n_pairs = sum(counts[arm] + counts[config.CONTROL] for arm in config.TREATMENTS)
-    assert len(scores) == n_pairs
+    assert scores["in_pair"].sum() == n_pairs
     text = (tmp_path / "results.json").read_text()
     json.loads(text, parse_constant=lambda c: pytest.fail(f"non-finite value {c} in results"))
     section = json.loads(text)[LABEL]

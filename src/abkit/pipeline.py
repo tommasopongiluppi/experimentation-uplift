@@ -14,6 +14,7 @@ from abkit.readout import run_cuped, run_frequentist
 from abkit.segments import run_segments
 from abkit.sequential import run_sequential
 from abkit.uplift.models import run_uplift_models
+from abkit.uplift.policy import run_policy
 from abkit.validate import run_validation
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,11 @@ def run_uplift() -> None:
     run_uplift_models()
 
 
+def run_targeting() -> None:
+    """Evaluate the budgeted targeting policies and write their tables, figure and results."""
+    run_policy()
+
+
 def run_all() -> None:
     """Run every pipeline stage end to end."""
     for name, step in STEPS.items():
@@ -118,6 +124,7 @@ STEPS: dict[str, Callable[[], None]] = {
     "sequential": run_peeking,
     "segments": run_subgroups,
     "uplift": run_uplift,
+    "policy": run_targeting,
 }
 
 
@@ -143,6 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub.add_parser("segments", help="Exploratory segment effects, interaction tests and BH.")
     sub.add_parser("uplift", help="Cross-fitted uplift learners and baselines with evaluation.")
+    sub.add_parser("policy", help="Budgeted targeting policies, IPW values and the budget curve.")
     sub.add_parser("run-all", help="Run every pipeline stage end to end.")
     return parser
 

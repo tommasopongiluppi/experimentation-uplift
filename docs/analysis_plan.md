@@ -426,3 +426,31 @@ it was made before or after seeing the outcome results.
 - **Why.** The S-learner is the simplest meta-learner and a useful reference. Choosing
   hyperparameters on an inner split by the base models' own losses guards against a poorly
   fitted default without touching the uplift metrics or the evaluation fold.
+
+### D8. Targeting policies: mens-by-default variant, level-calibration check, learner choice
+
+- **Date:** 2026-11-04. **Section:** §11. **Made after** the uplift-model evaluation had
+  been run and read.
+- **What changed.**
+  1. The uplift policy uses the **X-learner's visit scores for both emails**. For the womens
+     email it was the best ranking and meaningfully above every baseline. For the mens email
+     no ranking beat random, so choosing a "best" mens learner by its Qini coefficient would
+     select on noise; the same learner is used for both pairs instead.
+  2. A **level-calibration check** is added before the policy is used: the mean predicted
+     uplift in each pair against the observed average effect (with its Newcombe interval),
+     next to the decile calibration plots. The uplift policy compares predicted levels across
+     two models, so both must be on the observed scale.
+  3. An **exploratory mens-by-default policy**: because the mens effect shows no detectable
+     heterogeneity, its uplift is held at the pair's average effect; the womens email is sent
+     only where the womens model predicts more than that constant, the mens email otherwise;
+     customers are ranked by the chosen uplift and the top 10,000 are emailed. It is labelled
+     exploratory and is not a decision.
+  4. The response-model baseline follows §11 (each customer gets the email under which the
+     model predicts the higher visit probability; the 10,000 highest are emailed).
+  5. Policy values are reported both by plain IPW with the design probability 1/3 and by the
+     self-normalised estimator; increments are given in total, per email sent and as a share
+     of the effect of emailing everyone with the A/B winner. A cost-per-email parameter
+     (`config.COST_PER_EMAIL`, default 0) gives a net value. Policies are compared by paired
+     bootstrap differences on the same resamples, not by overlapping intervals.
+- **Why.** Items 1 to 3 respond to what the uplift evaluation showed and are recorded for
+  that reason; 3 is exploratory. Items 4 and 5 fix details the plan left open.

@@ -46,6 +46,11 @@ class TreatmentPair:
         Targets for the models and for evaluation; never features.
     p_treat : float
         Realised share of treated customers in the pair, ``treated.mean()``.
+    other_customer_id, X_other, outcomes_other : numpy.ndarray, pandas.DataFrame
+        The customers in the third arm (the other email). They take no part in fitting or
+        evaluating this pair's models, but the policy stage needs this pair's score for them,
+        so :func:`cross_fit_with_other` scores them with the fold models, none of which saw
+        them.
     """
 
     arm: str
@@ -54,11 +59,19 @@ class TreatmentPair:
     treated: np.ndarray
     outcomes: pd.DataFrame
     p_treat: float
+    other_customer_id: np.ndarray
+    X_other: pd.DataFrame
+    outcomes_other: pd.DataFrame
 
     @property
     def n(self) -> int:
         """Number of customers in the pair."""
         return int(self.treated.size)
+
+    @property
+    def n_other(self) -> int:
+        """Number of customers in the third arm."""
+        return int(self.other_customer_id.size)
 
 
 def treatment_pair(df: pd.DataFrame, arm: str) -> TreatmentPair:
@@ -85,7 +98,7 @@ def treatment_pair(df: pd.DataFrame, arm: str) -> TreatmentPair:
     if arm not in config.TREATMENTS:
         raise ValueError(f"arm must be one of {config.TREATMENTS}, got {arm!r}.")
     keep = df[config.ARM_COL].isin([arm, config.CONTROL]).to_numpy()
-    sub = df.loc[keep]
+    sub, other = df.loc[keep], df.loc[~keep]
     treated = (sub[config.ARM_COL].to_numpy() == arm).astype(int)
     if treated.sum() == 0 or treated.sum() == treated.size:
         raise ValueError(f"Pair {arm!r} vs control needs customers in both arms.")
@@ -96,6 +109,9 @@ def treatment_pair(df: pd.DataFrame, arm: str) -> TreatmentPair:
         treated=treated,
         outcomes=sub[list(config.OUTCOME_COLS)].reset_index(drop=True),
         p_treat=float(treated.mean()),
+        other_customer_id=other["customer_id"].to_numpy(),
+        X_other=build_features(other),
+        outcomes_other=other[list(config.OUTCOME_COLS)].reset_index(drop=True),
     )
 
 
@@ -142,6 +158,51 @@ def stratified_folds(
     return folds
 
 
+def cross_fit_with_other(
+    X: pd.DataFrame,
+    treated: np.ndarray,
+    y: np.ndarray,
+    fit_predict: FitPredict,
+    folds: np.ndarray,
+    X_other: pd.DataFrame,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Out-of-fold scores for ``X`` plus fold-averaged scores for rows outside the pair.
+
+    Each fold model scores its held-out rows and all of ``X_other``; the other rows' scores
+    are averaged over the folds. No model saw any row it scores.
+
+    Parameters
+    ----------
+    X, treated, y, fit_predict, folds
+        As in :func:`cross_fit`.
+    X_other : pandas.DataFrame
+        Feature rows that take no part in fitting (the third arm). May be empty.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(scores, other_scores)``: one out-of-fold score per row of ``X`` and one
+        fold-averaged score per row of ``X_other``.
+    """
+    assert_pre_treatment_only(X.columns)
+    assert_pre_treatment_only(X_other.columns)
+    treated, y, folds = np.asarray(treated), np.asarray(y), np.asarray(folds)
+    scores = np.full(len(X), np.nan)
+    other = np.zeros(len(X_other))
+    fold_ids = np.unique(folds)
+    for k in fold_ids:
+        test = folds == k
+        train = ~test
+        n_test = int(test.sum())
+        X_score = pd.concat([X.loc[test], X_other], ignore_index=True)
+        out = np.asarray(fit_predict(X.loc[train], treated[train], y[train], X_score), dtype=float)
+        if out.shape != (n_test + len(X_other),):
+            raise ValueError(f"fit_predict returned shape {out.shape} for fold {k}.")
+        scores[test] = out[:n_test]
+        other += out[n_test:] / fold_ids.size
+    return scores, other
+
+
 def cross_fit(
     X: pd.DataFrame,
     treated: np.ndarray,
@@ -177,16 +238,5 @@ def cross_fit(
     ValueError
         If ``fit_predict`` returns the wrong number of scores for a fold.
     """
-    assert_pre_treatment_only(X.columns)
-    treated, y, folds = np.asarray(treated), np.asarray(y), np.asarray(folds)
-    scores = np.full(len(X), np.nan)
-    for k in np.unique(folds):
-        test = folds == k
-        train = ~test
-        out = np.asarray(
-            fit_predict(X.loc[train], treated[train], y[train], X.loc[test]), dtype=float
-        )
-        if out.shape != (int(test.sum()),):
-            raise ValueError(f"fit_predict returned shape {out.shape} for fold {k}.")
-        scores[test] = out
+    scores, _ = cross_fit_with_other(X, treated, y, fit_predict, folds, X.iloc[:0])
     return scores

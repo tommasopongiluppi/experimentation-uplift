@@ -1166,3 +1166,69 @@ def plot_qini_comparison(curves: dict[str, pd.DataFrame], path: Path, title: str
         ax.set_xlim(0, 1)
         ax.legend(loc="upper left", ncol=2)
     return save(fig, path)
+
+
+POLICY_COLORS: dict[str, str] = {
+    "uplift": config.ARM_COLORS["mens"],
+    "response_model": config.ARM_COLORS["control"],
+    "random": TEXT_SECONDARY,
+    "recency_rule": "#b8860b",
+}
+POLICY_LABELS: dict[str, str] = {
+    "uplift": "uplift policy (X-learner)",
+    "response_model": "response model",
+    "random": "random targeting",
+    "recency_rule": "recency rule",
+}
+
+
+def plot_budget_curve(curve: pd.DataFrame, path: Path, budget: int = config.BUDGET) -> Path:
+    """Incremental visits and spend against the number of customers emailed, per policy.
+
+    Parameters
+    ----------
+    curve : pandas.DataFrame
+        Output of :func:`abkit.uplift.policy.budget_curve`: columns ``policy``,
+        ``n_emailed``, ``incremental_visits`` and ``incremental_spend``.
+    path : Path
+        Output PNG path.
+    budget : int
+        Email budget drawn as a vertical line.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    panels = (
+        ("incremental_visits", "incremental visits"),
+        ("incremental_spend", "incremental spend"),
+    )
+    with styled():
+        fig = Figure(figsize=(11.0, 4.5), layout="constrained")
+        axes = fig.subplots(1, 2).ravel()
+        for ax, (col, label) in zip(axes, panels, strict=True):
+            for name, part in curve.groupby("policy", sort=False):
+                ax.plot(
+                    part["n_emailed"],
+                    part[col],
+                    color=POLICY_COLORS.get(name, SERIES),
+                    lw=1.8 if name == "uplift" else 1.2,
+                    ls="-" if name == "uplift" else "--",
+                    label=POLICY_LABELS.get(name, name),
+                )
+            ax.axvline(budget, color=TEXT_SECONDARY, lw=1.0, ls=":")
+            ax.annotate(
+                f"budget {budget:,}",
+                (budget, 0),
+                xytext=(4, 4),
+                textcoords="offset points",
+                fontsize=9,
+                color=TEXT_SECONDARY,
+            )
+            ax.set_title(f"{label} vs emails sent")
+            ax.set_xlabel("customers emailed")
+            ax.set_ylabel(label)
+            ax.set_xlim(0, float(curve["n_emailed"].max()))
+        axes[0].legend(loc="lower right")
+    return save(fig, path)

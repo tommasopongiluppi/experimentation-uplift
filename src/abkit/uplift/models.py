@@ -27,7 +27,7 @@ from abkit.report import json_records, update_results, write_table
 from abkit.uplift.crossfit import (
     N_FOLDS,
     TreatmentPair,
-    cross_fit,
+    cross_fit_with_other,
     stratified_folds,
     treatment_pair,
 )
@@ -81,10 +81,14 @@ def score_pair(pair: TreatmentPair, outcome: str, rng: np.random.Generator) -> p
     Returns
     -------
     pandas.DataFrame
-        Columns ``customer_id``, ``arm``, ``outcome``, ``treated``, ``y``, ``fold`` and one
-        score column per name in ``RANKINGS``.
+        One row per customer in the pair, then one per customer of the third arm. Columns
+        ``customer_id``, ``arm`` (the pair's email), ``outcome``, ``in_pair``, ``treated``
+        and ``fold`` (-1 outside the pair), ``y`` and one score column per name in
+        ``RANKINGS``. Rows outside the pair are scored by the fold models, which never saw
+        them; they are for the policy stage and take no part in the evaluation.
     """
     y = pair.outcomes[outcome].to_numpy().astype(int)
+    y_other = pair.outcomes_other[outcome].to_numpy().astype(int)
     folds = stratified_folds(pair.treated, y, rng, N_FOLDS)
     learners = {
         "s_learner": SLearner(rng),
@@ -94,21 +98,27 @@ def score_pair(pair: TreatmentPair, outcome: str, rng: np.random.Generator) -> p
     }
     out = pd.DataFrame(
         {
-            "customer_id": pair.customer_id,
+            "customer_id": np.r_[pair.customer_id, pair.other_customer_id],
             "arm": pair.arm,
             "outcome": outcome,
-            "treated": pair.treated,
-            "y": y,
-            "fold": folds,
+            "in_pair": np.r_[np.ones(pair.n, bool), np.zeros(pair.n_other, bool)],
+            "treated": np.r_[pair.treated, np.full(pair.n_other, -1)],
+            "y": np.r_[y, y_other],
+            "fold": np.r_[folds, np.full(pair.n_other, -1)],
         }
     )
     for name, learner in learners.items():
         logger.info("Cross-fitting %s for %s / %s", name, pair.arm, outcome)
-        out[name] = cross_fit(pair.X, pair.treated, y, learner, folds)
+        in_pair, other = cross_fit_with_other(pair.X, pair.treated, y, learner, folds, pair.X_other)
+        out[name] = np.r_[in_pair, other]
+    X_all = pd.concat([pair.X, pair.X_other], ignore_index=True)
     out["recency_rule"] = recency_rule_score(
-        pair.X["recency"].to_numpy(), pair.X["history"].to_numpy(), pair.customer_id
+        X_all["recency"].to_numpy(), X_all["history"].to_numpy(), out["customer_id"].to_numpy()
     )
-    out["random"] = random_score(pair.n, rng)
+    # The third arm's random scores come from a spawned child generator, so the pair's own
+    # draws, and the fold seeds of every later pair and outcome, do not depend on them.
+    other_rng = rng.spawn(1)[0]
+    out["random"] = np.r_[random_score(pair.n, rng), random_score(pair.n_other, other_rng)]
     return out
 
 
@@ -120,7 +130,7 @@ def evaluate_rankings(
     Parameters
     ----------
     scores : pandas.DataFrame
-        Output of :func:`score_pair`.
+        Output of :func:`score_pair`; only its ``in_pair`` rows are evaluated.
     n_resamples : int
         Bootstrap resamples per ranking.
     seed : int
@@ -131,6 +141,7 @@ def evaluate_rankings(
     -------
     dict of str to BootstrapEvaluation
     """
+    scores = scores[scores["in_pair"]]
     treated, y = scores["treated"].to_numpy(), scores["y"].to_numpy()
     return {
         name: bootstrap_evaluation(

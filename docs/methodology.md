@@ -1134,3 +1134,87 @@ responders rather than lift flattens toward the random line.
 The plan's fourth baseline, "A/B winner at random", differs from random targeting only in
 which email is sent, so within one email-vs-control pair it is the random ranking; it is
 evaluated as a policy in the budgeted targeting stage (analysis plan D7).
+
+## Targeting policies and their value (inverse propensity weighting)
+
+**What it does.** Answers the challenge's targeting questions. A policy `π` assigns every
+customer an arm: the mens email, the womens email or no email. The experiment estimates
+the value of any such policy without a model of the outcome, because each customer's arm
+was drawn at random with known probability `p = 1/3`:
+
+- **IPW:** `V(π) = (1/n) Σ_i Y_i · 1{A_i = π(x_i)} / p`.
+- **Self-normalised IPW:** `V_sn(π) = Σ_i Y_i · 1{A_i = π(x_i)} / p ÷ Σ_i 1{A_i = π(x_i)} / p`,
+  which replaces `n` by the realised weight and removes the small-sample noise of the
+  arm shares.
+
+Both are consistent because every policy is a fixed function of pre-treatment variables
+and out-of-fold scores, so whether a customer's realised arm matches the policy is
+independent of the outcome given `x`. Values are reported as increments over emailing
+nobody: in total over the 64,000 customers, per email sent, and as a share of the
+incremental effect of emailing everyone with the A/B winner. A cost per email
+(`config.COST_PER_EMAIL`, default 0 because the challenge gives no cost) turns incremental
+spend into a net value.
+
+**Policies.** Email nobody; everyone gets the mens email; everyone gets the womens email;
+a random 10,000 get the A/B winner; the recency rule sends the A/B winner to the 10,000
+most recent purchasers; the response model emails the 10,000 most likely responders with
+the email under which they are more likely to visit; the uplift policy gives each customer
+the email with the higher predicted uplift and emails the 10,000 with the highest such
+uplift, if positive; the exploratory mens-by-default policy holds the mens uplift at its
+average effect and uses the womens model only where it predicts more; and the suppression
+policy emails everyone with their better email except the 10,000 lowest predicted uplifts
+(the do-not-email list). For that list the realised uplift of their better email is
+estimated within the group by IPW, to check whether it is at or below zero.
+
+**Scores.** The X-learner's visit scores are used for both emails (analysis plan D8). For
+the mens email no ranking beat random, so no "best" mens learner is chosen by Qini: that
+would select on noise. Because the uplift policy compares predicted levels across the two
+models, the mean predicted uplift in each pair is checked against the observed average
+effect before use, alongside the decile calibration plots. The scores were trained on
+visits; the conversion and spend values therefore measure how well a visit-based targeting
+carries over to those outcomes, not how well a conversion or spend model would do.
+
+**Budget curve.** For the uplift policy, the response model and random targeting, the
+incremental visits and spend are traced against the number of customers emailed, from 0 to
+everyone in steps of 1,000, each ranking sending its own choice of email.
+
+**Uncertainty and comparisons.** A customer-level bootstrap (1,000 resamples, the same
+resampled customers for every policy) gives percentile intervals with the Monte Carlo
+standard error of each end. Policies are compared by the paired bootstrap distribution of
+their difference, never by whether two intervals overlap. The out-of-fold scores are held
+fixed, so the intervals leave out model-fitting variability.
+
+**Tests.** On synthetic potential outcomes with known means, IPW and self-normalised IPW
+recover the closed-form value of a fixed policy within Monte Carlo error. Every budgeted
+policy emails at most the budget, the suppression policy withholds exactly the budget, the
+uplift policy emails the highest positive predicted uplifts with each customer's better
+email, and identical policies give a paired difference of exactly zero. The stage runs end
+to end on the synthetic fixture.
+
+**What the experiment says about the policies.** Read from `reports/tables/policy.csv`,
+`policy_comparison.csv` and the `policy` section of `results.json`; the numbers live there,
+not here.
+
+- The level-calibration check passes for both emails: the mean predicted uplift lies inside
+  the Newcombe interval of the observed average effect, so the two models' levels can be
+  compared.
+- The uplift policy is **not clearly better than the recency rule** on visits, conversions
+  or spend: every paired bootstrap difference between the two includes zero. Its spend point
+  estimate is well above the rule's, but the interval is wide because spend is almost all
+  zeros. The response model is nominally ahead of the uplift policy on visits, again without
+  a meaningful paired difference. The only paired difference that excludes zero among the
+  budgeted policies is uplift versus random targeting on conversions.
+- The reason is visible in the uplift-model section: the mens email, which the A/B winner
+  policies send, lifts visits for nearly everyone with no detectable heterogeneity, so any
+  rule that sends it to 10,000 customers captures about the same number of incremental
+  visits. The uplift model's advantage is confined to choosing *which* customers get the
+  womens email, a minority of the budget.
+- The suppression list (the 10,000 lowest predicted uplifts) does **not** identify
+  customers who should not be emailed: their realised uplift under their better email is
+  positive, with an interval that excludes zero. Withholding their email costs visits. The
+  honest answer to "whom should we not email" is that this experiment finds no such group.
+- The exploratory mens-by-default policy does not improve on the uplift policy.
+- The budget curve shows the same thing at every budget: on visits the three rankings are
+  close, with random targeting a little below the two models; on spend the uplift ranking
+  is nominally ahead at small budgets, within noise. The curves meet at 64,000 only up to
+  the choice of email, because each ranking sends its own choice.

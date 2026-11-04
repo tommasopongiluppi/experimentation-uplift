@@ -91,6 +91,13 @@ ALPHA: float = 0.05
 SRM_ALPHA: float = 0.001  # analysis plan §5: SRM p below this blocks the readout
 SMD_THRESHOLD: float = 0.1  # analysis plan §5: |SMD| above this is flagged
 BUDGET: int = 10_000
+# Design assignment probability per arm (three equal arms); the policy value uses it as the
+# known propensity in inverse propensity weighting, never an estimated one.
+ARM_PROBABILITY: float = 1.0 / 3.0
+# Cost of sending one email, in the same currency as spend. Zero by default because the
+# challenge gives no cost; set it to see each policy's net value (incremental spend minus
+# cost x emails sent).
+COST_PER_EMAIL: float = 0.0
 # Bayesian decision rule (analysis plan §9): ship if P(better) >= BAYES_P_BETTER and the expected
 # loss of shipping is below BAYES_LOSS_FRACTION of the control arm's mean.
 BAYES_P_BETTER: float = 0.95

@@ -1,0 +1,4 @@
+outcome,n_suppressed,uplift_per_customer,ci_low,ci_high,at_or_below_zero,ci_excludes_positive
+visit,10000,0.0702,0.05259889719194321,0.0875631781281711,False,False
+conversion,10000,0.0075,0.0036422132661200015,0.01134173356688235,False,False
+spend,10000,0.9787799999999998,0.4086110795703196,1.608213454043458,False,False
