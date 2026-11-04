@@ -991,3 +991,79 @@ def plot_segment_forest(effects: pd.DataFrame, path: Path) -> Path:
         )
         fig.legend(loc="outside lower center", ncol=4)
         return save(fig, path)
+
+
+def plot_uplift_curves(curves: pd.DataFrame, path: Path, title: str = "") -> Path:
+    """Uplift and Qini curves with bootstrap bands against the random-targeting line.
+
+    Parameters
+    ----------
+    curves : pandas.DataFrame
+        ``curves`` table of :class:`abkit.uplift.evaluation.BootstrapEvaluation`: columns
+        ``share``, ``uplift``, ``uplift_low``, ``uplift_high``, ``qini``, ``qini_low``,
+        ``qini_high``.
+    path : Path
+        Output PNG path.
+    title : str
+        Prefix for the panel titles, for example the pair being evaluated.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    panels = (("uplift", "Uplift curve"), ("qini", "Qini curve"))
+    with styled():
+        fig = Figure(figsize=(11.0, 4.5), layout="constrained")
+        axes = fig.subplots(1, 2).ravel()
+        for ax, (col, label) in zip(axes, panels, strict=True):
+            x = curves["share"].to_numpy()
+            ax.fill_between(
+                x, curves[f"{col}_low"], curves[f"{col}_high"], color=SERIES, alpha=0.18, lw=0
+            )
+            ax.plot(x, curves[col], color=SERIES, lw=1.8, label="model ranking")
+            final = float(curves[col].iloc[-1])
+            ax.plot([0, 1], [0, final], color=TEXT_SECONDARY, lw=1.0, ls="--", label="random")
+            ax.set_title(f"{title}{label}" if not title else f"{title}: {label}")
+            ax.set_xlabel("share of customers targeted")
+            ax.set_ylabel("incremental responses")
+            ax.set_xlim(0, 1)
+        axes[0].legend(loc="upper left")
+    return save(fig, path)
+
+
+def plot_uplift_calibration(deciles: pd.DataFrame, path: Path, title: str = "") -> Path:
+    """Predicted vs observed uplift by decile of the predicted score, with bootstrap bars.
+
+    Parameters
+    ----------
+    deciles : pandas.DataFrame
+        ``deciles`` table of :class:`abkit.uplift.evaluation.BootstrapEvaluation`: columns
+        ``decile``, ``predicted``, ``observed``, ``boot_low``, ``boot_high``.
+    path : Path
+        Output PNG path.
+    title : str
+        Title prefix.
+
+    Returns
+    -------
+    Path
+        The path written.
+    """
+    with styled():
+        fig, ax = new_figure((6.0, 5.0))
+        pred, obs = deciles["predicted"].to_numpy(), deciles["observed"].to_numpy()
+        err = np.vstack([obs - deciles["boot_low"], deciles["boot_high"] - obs])
+        ax.errorbar(pred, obs, yerr=err, fmt="o", color=SERIES, ecolor=SERIES, capsize=3, lw=1.2)
+        for d, xp, yo in zip(deciles["decile"], pred, obs, strict=True):
+            ax.annotate(str(d), (xp, yo), xytext=(5, 4), textcoords="offset points", fontsize=8)
+        lo = min(float(np.nanmin(deciles["boot_low"])), float(pred.min()))
+        hi = max(float(np.nanmax(deciles["boot_high"])), float(pred.max()))
+        ax.plot(
+            [lo, hi], [lo, hi], color=TEXT_SECONDARY, lw=1.0, ls="--", label="perfect calibration"
+        )
+        ax.set_title(f"{title}: calibration by decile" if title else "Calibration by decile")
+        ax.set_xlabel("mean predicted uplift in decile")
+        ax.set_ylabel("observed uplift (treated minus control rate)")
+        ax.legend(loc="upper left")
+    return save(fig, path)

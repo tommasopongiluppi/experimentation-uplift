@@ -1,1 +1,1 @@
-"""Uplift modelling: features, meta-learners, evaluation and targeting policy."""
+"""Uplift modelling: features, treatment pairs, cross-fitting, learners, evaluation and policy."""

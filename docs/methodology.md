@@ -982,3 +982,93 @@ the simulation equals the scalar one row by row. The simulation reproduces 1 −
 under the global null, and q · 15 / 20 with five real effects, within three Monte Carlo standard
 errors. The pipeline test on the fixture checks every table, the figure and the results.json
 section, and that every row is labelled exploratory.
+
+## Uplift feature matrix and the leakage guard
+
+**What it does.** Builds the feature matrix for the uplift models from the pre-treatment
+columns of the cleaned `customers` table and nothing else. `recency` and `history` stay
+numeric; the 0/1 flags `mens`, `womens` and `newbie` are kept as they are; `zip_code` and
+`channel` are one-hot encoded with every level from `config`, so the columns are the same
+whichever subset of customers is passed in. `history_segment` is dropped because it is
+`history` binned into seven dollar bands (analysis plan D6).
+
+**Guard.** `assert_pre_treatment_only` raises if any feature name is, or starts with, an
+outcome (`visit`, `conversion`, `spend`) or the treatment assignment (`arm`, raw `segment`),
+which also catches derived columns such as `arm_mens`. `build_features` runs it on its own
+output and `cross_fit` runs it on any feature frame it receives, so an outcome cannot reach
+a model without raising.
+
+**Tests.** The matrix built from the fixture has exactly the expected columns, no
+`history_segment`, one-hot rows that sum to one, and numeric columns equal to the input. The
+guard is tested on every forbidden name, on derived names, and on the allowed names.
+
+## Treatment pairs and cross-fitting
+
+**What it does.** Each email is modelled against control as its own binary problem: the
+`mens` pair and the `womens` pair. Inside a pair the treatment probability is known by
+design, so it is the realised share of the email arm, `p_treat = n_email / (n_email +
+n_control)`, never a fitted propensity.
+
+**Cross-fitting.** Customers are split into five folds, stratified jointly by arm and the
+binary outcome (four cells), with scikit-learn's `StratifiedKFold` seeded from
+`config.SEEDS["uplift"]`. For each fold the learner is fitted on the other four folds and
+scores the held-out fold, so every customer gets exactly one out-of-fold score from models
+that never saw that customer. `cross_fit` takes any `fit_predict(X_train, treated_train,
+y_train, X_test)` callable, so the T-learner, X-learner and the response-model baseline share
+the same folds and the same loop.
+
+**Assumptions.** Randomisation inside each pair, which the SRM and balance checks support.
+Stratifying on the outcome only balances the folds; the outcome is never a feature.
+
+**Tests.** `p_treat` equals the arm count ratio; every (arm, outcome) cell is spread across
+folds to within one customer; the same seed gives the same folds. With a `fit_predict` that
+returns the mean outcome of its training rows, each fold's scores equal the mean over the
+other folds exactly, which shows that no row scores itself.
+
+## Uplift and Qini curves, their areas, uplift at k and calibration
+
+**What it does.** Evaluates a ranking of customers by predicted uplift on out-of-fold
+scores. Customers are sorted by descending score; the curves are evaluated at every
+distinct score value, so tied customers enter together and the result does not depend on
+row order. With cumulative counts over the top share of customers `n`, of which `n_t`
+treated with `y_t` responders and `n_c` controls with `y_c` responders:
+
+- **Uplift curve:** `(y_t / n_t − y_c / n_c) · n`, the incremental responses expected if the
+  whole top share were treated.
+- **Qini curve** (Radcliffe 2007): `y_t − y_c · n_t / n_c`, the incremental responses among
+  the treated customers in the top share.
+
+A rate whose group is still empty counts as zero, as in scikit-uplift.
+
+**Areas.** Each area is the trapezoid integral over the share axis, so it is in incremental
+responses averaged over targeting depths. Three numbers are reported per curve:
+
+- `model`, the area under the curve;
+- `gain = model − random`, where the random curve is the straight line from the origin to
+  the curve's final point (the incremental responses random targeting finds at each depth);
+- `normalised = (model − random) / (perfect − random)`, 0 for random targeting and 1 for the
+  perfect ranking. The perfect ranking sorts by the observed outcomes exactly as scikit-uplift
+  does (for Qini: treated responders, then everyone else, then control responders), so the
+  normalised AUUC and Qini coefficient equal scikit-uplift's `uplift_auc_score` and
+  `qini_auc_score`.
+
+**Uplift at k.** The observed treated-minus-control response rate among the top `floor(k·n)`
+customers by score (ties broken by row order).
+
+**Calibration by decile.** Customers are split into ten equal-count bins of the predicted
+score (decile 1 = highest). Each bin reports the mean predicted uplift and the observed
+treated-minus-control rate with a Newcombe interval; a calibrated model lies on the diagonal.
+
+**Bootstrap.** Customers are resampled with replacement (multinomial counts as weights) and
+every metric is recomputed with the scores held fixed; bin membership is fixed from the
+original scores. Percentile 95% intervals are reported with the Monte Carlo standard error
+of each interval end. Because the scores are fixed, the intervals leave out model-fitting
+variability (analysis plan §11).
+
+**Tests.** A ten-customer example has its Qini and uplift curves, areas and uplift at k
+worked out by hand. On synthetic data with a known individual effect, the oracle ranking
+scores far above zero and random rankings average zero within Monte Carlo error; the perfect
+ranking scores exactly 1. Resampling weights of one reproduce the unweighted values. A slow
+test checks the bootstrap interval's coverage. When scikit-uplift is installed, the curves,
+both normalised areas and uplift at k are compared with its implementation (skipped
+otherwise).

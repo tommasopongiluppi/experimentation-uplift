@@ -393,3 +393,15 @@ it was made before or after seeing the outcome results.
 - **Note.** The challenge's question (did each email work better among past buyers of its own
   merchandise?) is answered from the pre-specified `mens` and `womens` segment rows and
   interaction tests inside the family; it needs no new test and is exploratory, not post hoc.
+
+### D6. Uplift features: `history_segment` dropped
+
+- **Date:** 2026-11-04. **Section:** §11. **Made before** any uplift model was fitted; the
+  feature matrix was being written when this entry was added.
+- **What changed.** §11 lists `history_segment` among the uplift features. It is not used.
+  The feature matrix holds `recency`, `history`, `mens`, `womens`, `newbie` and one-hot
+  indicators for `zip_code` and `channel`.
+- **Why.** `history_segment` is `history` binned into seven dollar bands, so it is redundant:
+  it carries no information the numeric column does not already carry, and the tree models
+  can place their own splits on `history`. Removing a redundant copy cannot be chosen by its
+  effect on a result because no uplift model had been fitted.
