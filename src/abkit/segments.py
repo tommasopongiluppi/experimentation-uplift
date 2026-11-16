@@ -443,6 +443,48 @@ def adjust_families(
     return effects, interactions
 
 
+def family_summary(
+    effects: pd.DataFrame,
+    interactions: pd.DataFrame,
+    alpha: float = config.ALPHA,
+    q: float = FDR_Q,
+) -> dict[str, dict[str, Any]]:
+    """Count each family's tests and how many are significant before and after correction.
+
+    Parameters
+    ----------
+    effects, interactions : pandas.DataFrame
+        Outputs of :func:`adjust_families`.
+    alpha : float
+        Level for the uncorrected count: a test counts when its raw ``p_value <= alpha``.
+    q : float
+        False discovery rate the ``significant_fdr`` flags were computed at.
+
+    Returns
+    -------
+    dict
+        Family -> ``adjustment``, ``q``, ``alpha``, ``n_level_tests``,
+        ``n_interaction_tests``, ``n_tests``, ``n_significant_raw`` (uncorrected) and
+        ``n_significant_fdr`` (after Benjamini-Hochberg). An adjusted p-value is never
+        below its raw one, so with ``alpha == q`` the raw count is at least the corrected one.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for family in effects["family"].unique():
+        e = effects[effects["family"] == family]
+        i = interactions[interactions["family"] == family]
+        out[family] = {
+            "adjustment": ADJUSTMENT,
+            "q": q,
+            "alpha": alpha,
+            "n_level_tests": len(e),
+            "n_interaction_tests": len(i),
+            "n_tests": len(e) + len(i),
+            "n_significant_raw": int((e["p_value"] <= alpha).sum() + (i["p_value"] <= alpha).sum()),
+            "n_significant_fdr": int(e["significant_fdr"].sum() + i["significant_fdr"].sum()),
+        }
+    return out
+
+
 def challenge_answer(effects: pd.DataFrame, interactions: pd.DataFrame) -> list[dict[str, Any]]:
     """Answer whether each email worked better among past buyers of its own merchandise.
 
@@ -712,20 +754,7 @@ def run_segments(
     write_table(interactions, INTERACTIONS_TABLE_NAME, tables)
     write_table(simulation, FDR_TABLE_NAME, tables)
     plots.plot_segment_forest(effects, reports_dir / "figures" / FIGURE_NAME, interactions)
-    families = {
-        f: {
-            "adjustment": ADJUSTMENT,
-            "q": FDR_Q,
-            "n_level_tests": int((effects["family"] == f).sum()),
-            "n_interaction_tests": int((interactions["family"] == f).sum()),
-            "n_tests": int((effects["family"] == f).sum() + (interactions["family"] == f).sum()),
-            "n_significant_fdr": int(
-                effects.loc[effects["family"] == f, "significant_fdr"].sum()
-                + interactions.loc[interactions["family"] == f, "significant_fdr"].sum()
-            ),
-        }
-        for f in effects["family"].unique()
-    }
+    families = family_summary(effects, interactions)
     update_results(
         "segments",
         {

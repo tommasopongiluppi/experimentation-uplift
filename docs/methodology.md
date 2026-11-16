@@ -939,7 +939,11 @@ with the same effect, or one significant and one not with effects that do not di
 **Multiple testing.** Benjamini–Hochberg at q = 0.05 over each outcome's whole segment family:
 the 46 per-level tests and the 14 interaction tests together, 60 per outcome, as pre-specified.
 Raw and adjusted p-values are reported side by side with the family size, and
-`significant_fdr` flags adjusted p ≤ q. The Hillstrom challenge's own question, whether the
+`significant_fdr` flags adjusted p ≤ q. For each family `results.json` also records how many
+of its tests are significant before correction (raw p ≤ 0.05, `n_significant_raw`) next to
+the count after it (`n_significant_fdr`), so the cost of the correction is visible; an
+adjusted p-value is never below its raw one, so the first count is at least the second, which
+is tested together with a hand-worked family of six p-values. The Hillstrom challenge's own question, whether the
 women's email worked better among past women's buyers and the men's email among past men's
 buyers, is answered from the pre-specified `mens` and `womens` rows (the effect among past
 buyers, among non-buyers and the interaction test), inside the family, with no extra test.

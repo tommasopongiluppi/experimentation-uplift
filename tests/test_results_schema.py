@@ -73,6 +73,22 @@ def test_validate_results_names_every_problem(tmp_path):
         check_results(path)
 
 
+def test_segment_families_are_validated_record_by_record():
+    results = json.loads(config.RESULTS_JSON.read_text())
+    families = results["segments"]["families"]
+    assert set(families) == {"segments_spend", "segments_visit", "segments_conversion"}
+    for counts in families.values():
+        assert counts["n_tests"] >= counts["n_significant_raw"] >= counts["n_significant_fdr"]
+    del families["segments_spend"]["n_significant_raw"]  # missing key inside one family
+    families["segments_visit"]["n_significant_fdr"] = 47.5  # wrong type inside another
+    families["segments_conversion"] = 36  # a family that is not a record
+    assert validate_results(results, config.REPORTS) == [
+        "segments.families.segments_spend.n_significant_raw: missing",
+        "segments.families.segments_visit.n_significant_fdr: expected int, got float",
+        "segments.families.segments_conversion: expected dict, got int",
+    ]
+
+
 def test_optional_section_is_validated_only_when_present():
     results = json.loads(config.RESULTS_JSON.read_text())
     results.pop("seed_robustness", None)

@@ -7137,25 +7137,31 @@
       "segments_spend": {
         "adjustment": "bh",
         "q": 0.05,
+        "alpha": 0.05,
         "n_level_tests": 46,
         "n_interaction_tests": 14,
         "n_tests": 60,
+        "n_significant_raw": 33,
         "n_significant_fdr": 26
       },
       "segments_visit": {
         "adjustment": "bh",
         "q": 0.05,
+        "alpha": 0.05,
         "n_level_tests": 46,
         "n_interaction_tests": 14,
         "n_tests": 60,
+        "n_significant_raw": 49,
         "n_significant_fdr": 47
       },
       "segments_conversion": {
         "adjustment": "bh",
         "q": 0.05,
+        "alpha": 0.05,
         "n_level_tests": 46,
         "n_interaction_tests": 14,
         "n_tests": 60,
+        "n_significant_raw": 38,
         "n_significant_fdr": 36
       }
     },

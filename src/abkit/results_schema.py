@@ -43,12 +43,16 @@ class Field:
         For a ``dict`` type: the required keys inside it.
     required : bool
         Whether the key must be present.
+    values : dict of str to Field, optional
+        For a ``dict`` type whose keys are free names (a family, a metric): the required keys
+        inside every one of its values, each of which must itself be a dict.
     """
 
     type: str
     description: str
     fields: dict[str, "Field"] = field(default_factory=dict)
     required: bool = True
+    values: dict[str, "Field"] = field(default_factory=dict)
 
 
 def _f(type_: str, description: str, **fields: "Field") -> Field:
@@ -226,7 +230,20 @@ SCHEMA: dict[str, dict[str, Field]] = {
         "alpha": _f("float", "Two-sided level."),
         "segment_variables": _f("dict", "Segment variable -> its levels."),
         "n_levels": _f("int", "Total number of segment levels."),
-        "families": _f("dict", "Family -> adjustment, test counts and significant count."),
+        "families": Field(
+            "dict",
+            "Family -> adjustment, test counts and significant counts before and after it.",
+            values={
+                "adjustment": _f("str", "Multiple-testing adjustment of the family (``bh``)."),
+                "q": _f("float", "False discovery rate of the adjustment."),
+                "alpha": _f("float", "Level of the uncorrected count."),
+                "n_level_tests": _f("int", "Per-level tests in the family."),
+                "n_interaction_tests": _f("int", "Interaction tests in the family."),
+                "n_tests": _f("int", "All tests in the family."),
+                "n_significant_raw": _f("int", "Tests with raw p <= alpha, before any correction."),
+                "n_significant_fdr": _f("int", "Tests with Benjamini-Hochberg adjusted p <= q."),
+            },
+        ),
         "challenge_question": _f(
             "list[dict]", "Effect of each email among past buyers of its category."
         ),
@@ -370,6 +387,14 @@ def _validate_fields(
             problems.append(f"{key}: file {value!r} not found under {reports_dir}")
         if spec.fields and isinstance(value, dict):
             problems.extend(_validate_fields(value, spec.fields, key, reports_dir))
+        if spec.values and isinstance(value, dict):
+            for name_, item in value.items():
+                if isinstance(item, dict):
+                    problems.extend(
+                        _validate_fields(item, spec.values, f"{key}.{name_}", reports_dir)
+                    )
+                else:
+                    problems.append(f"{key}.{name_}: expected dict, got {type(item).__name__}")
     return problems
 
 
@@ -451,6 +476,8 @@ def _render_fields(fields: dict[str, Field], prefix: str = "") -> list[str]:
         lines.append(f"| `{prefix}{name}` | `{spec.type}`{req} | {spec.description} |")
         if spec.fields:
             lines.extend(_render_fields(spec.fields, f"{prefix}{name}."))
+        if spec.values:
+            lines.extend(_render_fields(spec.values, f"{prefix}{name}.<name>."))
     return lines
 
 

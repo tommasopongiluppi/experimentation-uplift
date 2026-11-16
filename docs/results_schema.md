@@ -203,7 +203,15 @@ file or from the CSV tables it names.
 | `alpha` | `float` | Two-sided level. |
 | `segment_variables` | `dict` | Segment variable -> its levels. |
 | `n_levels` | `int` | Total number of segment levels. |
-| `families` | `dict` | Family -> adjustment, test counts and significant count. |
+| `families` | `dict` | Family -> adjustment, test counts and significant counts before and after it. |
+| `families.<name>.adjustment` | `str` | Multiple-testing adjustment of the family (``bh``). |
+| `families.<name>.q` | `float` | False discovery rate of the adjustment. |
+| `families.<name>.alpha` | `float` | Level of the uncorrected count. |
+| `families.<name>.n_level_tests` | `int` | Per-level tests in the family. |
+| `families.<name>.n_interaction_tests` | `int` | Interaction tests in the family. |
+| `families.<name>.n_tests` | `int` | All tests in the family. |
+| `families.<name>.n_significant_raw` | `int` | Tests with raw p <= alpha, before any correction. |
+| `families.<name>.n_significant_fdr` | `int` | Tests with Benjamini-Hochberg adjusted p <= q. |
 | `challenge_question` | `list[dict]` | Effect of each email among past buyers of its category. |
 | `fdr_simulation` | `dict` | Settings and rows of the false-discovery simulation. |
 | `table` | `path` | Path of the CSV behind this section, relative to the reports directory. |

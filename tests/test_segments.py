@@ -19,9 +19,11 @@ from abkit.segments import (
     N_SIM_SEGMENTS,
     SEGMENT_OUTCOMES,
     SEGMENT_VARIABLES,
+    adjust_families,
     bh_rows,
     build_segment_tables,
     challenge_answer,
+    family_summary,
     interaction_test,
     interaction_tests,
     ols_hc2,
@@ -216,6 +218,41 @@ def test_families_are_bh_per_outcome_over_levels_and_interactions(customers):
         assert rec["larger_among_past_buyers"] == (rec["past_buyers_diff"] > rec["non_buyers_diff"])
 
 
+def test_family_summary_counts_a_hand_worked_family():
+    # Family a, six p-values sorted: 0.001, 0.02, 0.03, 0.04, 0.5, 0.9. Four are <= 0.05 raw.
+    # BH adjusted: 0.006, 0.06, 0.06, 0.06, 0.6, 0.9, so one survives at q = 0.05.
+    effects = pd.DataFrame(
+        {"family": ["a"] * 4 + ["b"] * 2, "p_value": [0.001, 0.02, 0.04, 0.5, 0.5, 0.6]}
+    )
+    interactions = pd.DataFrame({"family": ["a", "a", "b"], "p_value": [0.03, 0.9, 0.7]})
+    summary = family_summary(*adjust_families(effects, interactions))
+    assert summary["a"] == {
+        "adjustment": "bh",
+        "q": FDR_Q,
+        "alpha": config.ALPHA,
+        "n_level_tests": 4,
+        "n_interaction_tests": 2,
+        "n_tests": 6,
+        "n_significant_raw": 4,
+        "n_significant_fdr": 1,
+    }
+    assert summary["b"]["n_tests"] == 3
+    assert summary["b"]["n_significant_raw"] == 0 and summary["b"]["n_significant_fdr"] == 0
+
+
+def test_family_summary_raw_count_is_at_least_the_bh_count(customers):
+    effects, interactions = build_segment_tables(customers_con(customers))
+    summary = family_summary(effects, interactions)
+    assert set(summary) == {f"segments_{o}" for o in SEGMENT_OUTCOMES}
+    for family, counts in summary.items():
+        both = pd.concat([effects, interactions])
+        both = both[both["family"] == family]
+        assert counts["n_tests"] == len(both) == 60
+        assert counts["n_significant_raw"] == int((both["p_value"] <= config.ALPHA).sum())
+        assert counts["n_significant_fdr"] == int((both["p_adj"] <= FDR_Q).sum())
+        assert counts["n_tests"] >= counts["n_significant_raw"] >= counts["n_significant_fdr"] >= 0
+
+
 def test_interaction_tests_use_only_the_two_arms(customers):
     rows = run_sql(customers_con(customers), "adjustment_rows")
     table = interaction_tests(rows)
@@ -281,6 +318,10 @@ def test_run_segments_writes_outputs(fixture_db, tmp_path):
     assert section["label"] == LABEL and "D5" in section["deviation"]
     assert section["n_levels"] == N_LEVELS
     assert all(f["n_tests"] == 60 for f in section["families"].values())
+    assert all(
+        f["n_tests"] >= f["n_significant_raw"] >= f["n_significant_fdr"]
+        for f in section["families"].values()
+    )
     assert set(section["families"]) == {f"segments_{o}" for o in SEGMENT_OUTCOMES}
     assert len(section["challenge_question"]) == 2 * len(SEGMENT_OUTCOMES)
     assert section["fdr_simulation"]["n_segments"] == N_SIM_SEGMENTS

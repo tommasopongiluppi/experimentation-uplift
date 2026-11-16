@@ -454,3 +454,29 @@ it was made before or after seeing the outcome results.
      bootstrap differences on the same resamples, not by overlapping intervals.
 - **Why.** Items 1 to 3 respond to what the uplift evaluation showed and are recorded for
   that reason; 3 is exploratory. Items 4 and 5 fix details the plan left open.
+- **Clarification (added 2026-11-16; the text above is unchanged).**
+  - **Items 1, 2 and 3 are results-driven (post hoc).** All three were decided after the
+    uplift evaluation had been run and read: the Qini and uplift curves, their areas and the
+    paired bootstrap comparisons of every ranking were known when they were chosen. None of
+    them is part of the pre-registered analysis.
+  - **Item 1 is a post-hoc model choice.** The frozen §11 pre-specified two learners, the
+    T-learner and the X-learner, each on `HistGradientBoostingClassifier` base models, and
+    defined the policy on "predicted uplift" without saying which learner supplies it or how
+    one would be selected; D7 then added the S-learner before any model was fitted. The
+    X-learner was picked from these three because of how it ranked in the evaluation, so the
+    policy built on it is a post-hoc analysis, not a confirmatory one.
+  - **The X-learner's reported Qini is optimistic.** It was selected on the same out-of-fold
+    evaluation that reports its Qini coefficient, so that coefficient is the largest of
+    several noisy estimates and is biased upward as an estimate of how the model would rank
+    new customers. The same holds for every policy value computed from its scores. No
+    sample was held out from the selection, so the size of this optimism is not estimated
+    here. The evaluation itself (`uplift_models.summary` in `reports/results.json`) does not
+    separate the X-learner from the S-learner on the womens pair, which is a further reason
+    to read "best" as "chosen", not as "shown to be better".
+  - **The repeated cross-fitting is supporting, not independent, evidence.** The ten fold
+    seeds (`seed_robustness` in `reports/results.json`) re-split and re-fit on the same
+    64,000 customers and the same outcomes. They show that the ranking on the womens pair
+    does not depend on one fold assignment or model seed. They cannot show that it would
+    hold on new customers, and they do not remove the selection effect, because every seed
+    reuses the data the choice was made on. Confirming the choice needs a new experiment or
+    a sample kept aside before any model is compared.
