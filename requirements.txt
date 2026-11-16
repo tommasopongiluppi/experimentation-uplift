@@ -1,0 +1,3 @@
+# Used by Streamlit Community Cloud: installs the abkit package and its dependencies
+# from this repository. Editable, so the package finds reports/ next to the source tree.
+-e .

@@ -277,6 +277,33 @@ def test_rejections_require_matching_constants(constants14):
         rejections(paths, constants14, tau=0.01)
 
 
+def test_rejections_can_apply_a_subset_of_the_rules_unchanged():
+    rng = np.random.default_rng(11)
+    paths = simulate_rate_paths(0.05, 0.055, 6_000, 6, 500, rng)
+    constants = calibrate_boundaries(6, 5_000, rng)
+    every = rejections(paths, constants, tau=0.01)
+    some = rejections(paths, constants, tau=0.01, methods=["obf", "naive"])
+    assert list(some) == ["obf", "naive"]
+    for name, flags in some.items():
+        np.testing.assert_array_equal(flags, every[name])
+    with pytest.raises(ValueError, match="Unknown methods"):
+        rejections(paths, constants, tau=0.01, methods=["naive", "coin_flip"])
+
+
+@pytest.mark.parametrize(
+    ("p_a", "p_b", "n_per_arm"),
+    [(0.10, 0.10, 7_000), (0.10, 0.11, 7_000), (0.006, 0.006, 21_000), (0.30, 0.30, 140)],
+)
+def test_bayes_rule_per_run_equals_the_count_boundary_route(p_a, p_b, n_per_arm):
+    rng = np.random.default_rng(5)
+    paths = simulate_rate_paths(p_a, p_b, n_per_arm, 14, 1_500, rng)
+    constants = calibrate_boundaries(14, 5_000, rng)
+    boundary = rejections(paths, constants, tau=0.01, methods=["bayes"])["bayes"]
+    per_run = rejections(paths, constants, tau=0.01, methods=["bayes"], bayes_per_run=True)["bayes"]
+    assert boundary.any() and not boundary.all()
+    np.testing.assert_array_equal(per_run, boundary)
+
+
 # --- end to end on the fixture (fast mode) -----------------------------------------------------
 
 

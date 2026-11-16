@@ -21,6 +21,7 @@ are kept, never per-customer arrays. Every Monte Carlo rate carries its standard
 
 import logging
 import math
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -430,9 +431,20 @@ def bayes_count_boundary(
     return np.where(above.any(axis=1), first, n + 1)
 
 
-def _bayes_rejections(paths: Paths, threshold: float) -> np.ndarray:
-    """Flag the looks at which P(B > A) leaves (1 - threshold, threshold)."""
+def _bayes_rejections(paths: Paths, threshold: float, per_run: bool = False) -> np.ndarray:
+    """Flag the looks at which P(B > A) leaves (1 - threshold, threshold).
+
+    For a binary outcome the default route finds the boundary count once per possible count
+    at each look, which is the cheaper one for many runs. ``per_run`` evaluates P(B > A) for
+    every run and look directly instead: the same rule, cheaper for a few thousand runs
+    because its cost does not grow with the sample size or the effect.
+    """
     reject = np.empty(paths.sum_a.shape, dtype=bool)
+    if paths.binary and per_run:
+        prob = prob_b_greater_a(
+            1 + paths.sum_a, 1 + paths.n - paths.sum_a, 1 + paths.sum_b, 1 + paths.n - paths.sum_b
+        )
+        return (prob > threshold) | (prob < 1 - threshold)
     if not paths.binary:
         # Large-sample normal posterior on the mean difference (flat prior):
         # P(B > A) = Phi(diff / se), so the rule is |z| > z_threshold.
@@ -561,8 +573,10 @@ def rejections(
     alpha: float = config.ALPHA,
     threshold: float = config.BAYES_P_BETTER,
     tau_multipliers: dict[str, float] | None = None,
+    methods: Sequence[str] | None = None,
+    bayes_per_run: bool = False,
 ) -> dict[str, np.ndarray]:
-    """Apply every decision rule to simulated experiments.
+    """Apply every decision rule, or the ones asked for, to simulated experiments.
 
     Parameters
     ----------
@@ -578,6 +592,12 @@ def rejections(
         Bayesian P(B > A) threshold.
     tau_multipliers : dict, optional
         Method name -> factor applied to ``tau`` (default ``TAU_MULTIPLIERS``).
+    methods : sequence of str, optional
+        Apply only these rules (default: all of them). The rules are independent, so leaving
+        some out changes nothing about the others.
+    bayes_per_run : bool
+        Evaluate the Bayesian rule for each run and look directly instead of through the
+        count boundary. Same rule; faster for a few thousand runs (the live simulator).
 
     Returns
     -------
@@ -590,18 +610,27 @@ def rejections(
     diff, se = difference_and_se(paths)
     z = np.abs(z_statistics(diff, se))
     z_alpha = stats.norm.isf(alpha / 2)
-    fixed = np.zeros_like(z, dtype=bool)
-    fixed[:, -1] = z[:, -1] > z_alpha
-    out = {
+
+    def fixed() -> np.ndarray:
+        flags = np.zeros_like(z, dtype=bool)
+        flags[:, -1] = z[:, -1] > z_alpha
+        return flags
+
+    rules: dict[str, Callable[[], np.ndarray]] = {
         "fixed": fixed,
-        "naive": z > z_alpha,
-        "bayes": _bayes_rejections(paths, threshold),
-        "pocock": z > constants.pocock_boundary(),
-        "obf": z > constants.obf_boundary(),
+        "naive": lambda: z > z_alpha,
+        "bayes": lambda: _bayes_rejections(paths, threshold, bayes_per_run),
+        "pocock": lambda: z > constants.pocock_boundary(),
+        "obf": lambda: z > constants.obf_boundary(),
     }
     for name, factor in (tau_multipliers or TAU_MULTIPLIERS).items():
-        out[name] = msprt_p_values(diff, se, factor * tau) <= alpha
-    return out
+        rules[name] = lambda factor=factor: msprt_p_values(diff, se, factor * tau) <= alpha
+    if methods is not None:
+        unknown = sorted(set(methods) - set(rules))
+        if unknown:
+            raise ValueError(f"Unknown methods {unknown}; choose from {sorted(rules)}.")
+        rules = {name: rules[name] for name in methods}
+    return {name: rule() for name, rule in rules.items()}
 
 
 def first_rejection(reject: np.ndarray) -> np.ndarray:
