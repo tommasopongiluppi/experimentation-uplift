@@ -505,6 +505,29 @@ it was made before or after seeing the outcome results.
 - **Why.** One policy should have one value at one budget. Nothing else in the analysis
   changes.
 
+### D10. Decision rule for choosing a targeting policy
+
+- **Date:** 2026-11-17, 19:54 CET. **Section:** §11. **Written after** an independent review
+  of the repository **and before** the corrected results exist. The review found that the
+  model-based policies select on the realised arm (corrected in a later deviation) and that
+  the comparison with random targeting rested on a single random draw. When this rule was
+  written, the uncorrected policy results and the review's own estimates had been seen; the
+  results that follow the corrections had not been computed.
+- **What changed.** §11 pre-registered how the policies are built and evaluated but no rule
+  for choosing one. The rule is:
+
+  > A ranking is recommended for a 10,000 budget only if its paired difference against
+  > random targeting (the exact expectation, budget x ATE) excludes zero on spend or on
+  > visits. Among rankings that qualify, choose the simplest (recency rule, then response
+  > model, then uplift model) unless a more complex one is separated from it. If none
+  > qualifies, the memo says targeting is not shown to add value at this budget, and that
+  > any of the rankings or a random 10,000 is defensible.
+
+- **Why.** Without a rule fixed in advance, the recommendation could follow whichever
+  comparison happened to look best. The rule is fixed before the corrected numbers so that
+  it cannot be fitted to them. It is not a pre-registered rule in the sense of §1 to §12: it
+  was written with knowledge of the uncorrected results, and the memo says so.
+
 ### Formatting note (2026-11-17)
 
 Dollar signs in this file are now written with a backslash so that GitHub does not render
