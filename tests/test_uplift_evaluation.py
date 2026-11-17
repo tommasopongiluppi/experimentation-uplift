@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from abkit.frequentist import diff_in_proportions
-from abkit.plots import plot_uplift_calibration, plot_uplift_curves
+from abkit.plots import plot_uplift_calibration
 from abkit.uplift.evaluation import (
     assign_bins,
     auuc,
@@ -245,12 +245,11 @@ def test_bootstrap_interval_coverage(rng):
 # --- plots -----------------------------------------------------------------------------------
 
 
-def test_plots_write_png(rng, tmp_path):
+def test_calibration_plot_writes_png(rng, tmp_path):
     tau, t, y = _synthetic(rng, 500)
     boot = bootstrap_evaluation(tau, t, y, rng, n_resamples=20)
-    p1 = plot_uplift_curves(boot.curves, tmp_path / "curves.png", title="mens vs control")
-    p2 = plot_uplift_calibration(boot.deciles, tmp_path / "calibration.png")
-    assert p1.stat().st_size > 0 and p2.stat().st_size > 0
+    path = plot_uplift_calibration(boot.deciles, tmp_path / "calibration.png")
+    assert path.stat().st_size > 0
 
 
 # --- scikit-uplift cross-check ---------------------------------------------------------------

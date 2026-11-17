@@ -122,7 +122,7 @@ scales and the results agree with pandas to 1e-9.
 - On the test fixture, every n, sum, sum of squares, mean, variance and covariance matches a
   pandas group-by to a tolerance of 1e-9, for raw and for winsorised spend.
 - The cap equals `numpy.quantile` of converters' spend at 0.95, binds on the fixture, and is
-  not the all-customer quantile (which is $0).
+  not the all-customer quantile (which is \$0).
 - A planted example with converter spend 1 to 100 split unevenly across arms gives the pooled
   cap 1 + 0.95 × 99 = 95.05 in every arm; only the values above it change, each to exactly
   95.05.
@@ -177,7 +177,7 @@ check that this is good enough.
 **How it is tested.** The t statistic, degrees of freedom, p-value and interval match
 `scipy.stats.ttest_ind(equal_var=False)` to 1e-8. A slow simulation of 2,000 experiments with
 zero-inflated, heavy-tailed spend shaped like the data (about 1% converters; converter spend with
-a $29.99 floor, median about $81 and a long right tail top-coded at $499) checks that the
+a \$29.99 floor, median about \$81 and a long right tail top-coded at \$499) checks that the
 interval covers the true difference 95% of the time, within 3 Monte Carlo standard errors. The
 true mean of that spend comes from a closed-form expression, itself checked by Monte Carlo.
 
@@ -304,7 +304,7 @@ spend has little to say about this outcome:
   customer; the year-long total averages over many such windows, the outcome sees one.
 - `history` is itself awkward for a linear fit: about an eighth of customers sit at its
   minimum, and its long right tail (into the thousands) drives θ.
-- Spend is top-coded at $499 in the source, which cuts off the large orders that a big past
+- Spend is top-coded at \$499 in the source, which cuts off the large orders that a big past
   spender might place.
 
 So the achieved reduction is reported as it is (the `cuped` section of `reports/results.json`
@@ -583,7 +583,7 @@ mean 1, the Bayesian bootstrap draws continuous weights with mean 1/n.
   Dirichlet distribution (summing the components of a Dirichlet(α_1, …, α_n) over disjoint groups
   gives a Dirichlet with the group sums as parameters), (W_v)_v ~ Dirichlet(c_v)_v, so the
   zero-spend customers collapse into one component with parameter n_zero, and the ties among
-  converters (the $29.99 floor, the $499 cap) collapse the same way. The implementation draws a
+  converters (the \$29.99 floor, the \$499 cap) collapse the same way. The implementation draws a
   Dirichlet over the distinct values with their counts as parameters: the same posterior as the
   n-dimensional one, at the cost of a few hundred numbers per draw instead of 21,000.
 - **Exact posterior moments.** E[w_i] = 1/n, Var(w_i) = (n − 1) / (n² (n + 1)) and
@@ -605,7 +605,7 @@ mean 1, the Bayesian bootstrap draws continuous weights with mean 1/n.
 
 **Assumptions.** Customers are independent and the sample is the population's support: the
 posterior cannot put mass on spend values that nobody in the sample reached, so it says nothing
-about orders above the $499 top-code. The flat Dirichlet is a prior on the empirical
+about orders above the \$499 top-code. The flat Dirichlet is a prior on the empirical
 distribution, not on a parameter, which is why there is no prior-strength ladder here. With
 about 21,000 customers per arm and 120 to 270 converters the posterior of the mean is close to
 normal and the credible interval tracks the Welch and percentile-bootstrap intervals; with a
@@ -668,33 +668,33 @@ whatever it is.
   unaffected, and the table carries both. The exact-moment columns are left empty for these rows.
 - Posterior predictive check, per arm: for 4,000 posterior draws of (μ, σ²), a replicate
   dataset of the arm's k converters is simulated from the fitted log-normal, and the mean,
-  median, 90th, 95th and 99th percentiles, maximum, share at or above the $499 cap and share at
-  or below the $29.99 floor are computed for the replicates and for the data. Each statistic
+  median, 90th, 95th and 99th percentiles, maximum, share at or above the \$499 cap and share at
+  or below the \$29.99 floor are computed for the replicates and for the data. Each statistic
   gets a posterior predictive interval and p-value, P(replicate ≥ observed); p-values near 0 or
   1 mean the model does not reproduce that feature. The model's implied P(spend ≥ 499) =
   E_post[1 − Φ((log 499 − μ) / σ)] is reported next to the observed share of converters at
-  exactly $499.
+  exactly \$499.
 
 **What the check shows on the real data** (the values are in `bayes_spend_ppc.csv`; read them
 there). The log-normal reproduces the mean, the median and the upper percentiles of converters'
 spend within their posterior predictive intervals in every arm, and its implied probability of
-reaching $499 is of the same order as the observed share of converters sitting at the cap. Where
-it fails, and fails clearly, is the left tail: the share of converters at or below the $29.99
+reaching \$499 is of the same order as the observed share of converters sitting at the cap. Where
+it fails, and fails clearly, is the left tail: the share of converters at or below the \$29.99
 floor is about twice what the log-normal predicts, with posterior predictive p-values at or near
 zero in every arm. The data have a point mass at the floor (the cheapest order), and a continuous
 model has no such mass. The cap shows up more gently: the observed maximum sits at the cap in
 every arm and low in the predictive distribution of the maximum, and the 99th percentile is
-pinned at $499 where the model expects a spread of values above it.
+pinned at \$499 where the model expects a spread of values above it.
 
 **What the top-coding does to the parametric model.** The log-normal is fitted to the capped
-values as if they were exact, so every order above $499 enters the likelihood as $499. That
+values as if they were exact, so every order above \$499 enters the likelihood as \$499. That
 pulls μ and σ² down relative to the uncapped distribution, so exp(μ + σ² / 2) understates the
-mean of true spend. At the same time the fitted log-normal keeps a tail above $499 that the data
+mean of true spend. At the same time the fitted log-normal keeps a tail above \$499 that the data
 cannot have, so as an estimate of the mean of **top-coded** spend, which is what the bootstrap
 and the frequentist readout estimate, it is pulled the other way. The two biases partly offset,
 and with 2% of converters at the cap both are small next to the posterior spread, which is why
-the two models agree here. The proper fix is a censored likelihood for the values at $499
-(treating them as "at least $499"), which is no longer conjugate and would still rest on the
+the two models agree here. The proper fix is a censored likelihood for the values at \$499
+(treating them as "at least \$499"), which is no longer conjugate and would still rest on the
 log-normal shape, which the floor already contradicts. The bootstrap needs none of this: it
 estimates the mean of spend as recorded, and the plan states the top-code as a limitation of
 every spend effect (plan §8).
@@ -1193,6 +1193,12 @@ emails the first 10,000 customers of the permutation and the budget curve emails
 random row of `policy.csv` (analysis plan D9). It is one realisation of the policy: its
 expected value is the budget times the A/B winner's average effect, and a single draw sits
 above or below that by sampling noise, which the bootstrap interval of the random row covers.
+The README reports both side by side: the draw with its bootstrap interval, and the
+expectation `budget × (mean_winner − mean_control)` with the interval of that difference
+(Newcombe for visits, Welch for spend) multiplied by the budget. The expectation uses the
+difference in means of the frequentist readout, so it differs slightly from the IPW value of
+"everyone gets the winner" scaled to the budget, which divides by the design probability
+and not by the realised arm sizes.
 
 **Uncertainty and comparisons.** A customer-level bootstrap (1,000 resamples, the same
 resampled customers for every policy) gives percentile intervals with the Monte Carlo
@@ -1332,3 +1338,21 @@ every stage output exists, that `results.json` validates, that the budget scaled
 rows, that a second run skips every cached stage, and that removing an output or passing
 `--force` reruns only what it should. The schema tests check the committed `results.json`
 and that the rendered document matches the schema.
+
+## Generated README
+
+**What it does.** `README.md` is a decision memo whose numbers are all generated. Each block
+between `<!-- RESULTS:name -->` and `<!-- /RESULTS:name -->` is rebuilt by
+`python -m abkit.report update-readme` from `reports/results.json` and the tables it names
+(`abkit.readme` holds the text of each block, `abkit.report` the marker handling). Wording
+that depends on a result, such as which email won or whether two policies are separated,
+is selected from the flags in `results.json`.
+
+**Assumptions.** The static text outside the markers states no result. Dollar amounts are
+written with an escaped dollar sign because GitHub renders text between two bare dollar
+signs as mathematics.
+
+**Tests.** The committed README must equal what `results.json` generates
+(`update-readme --check`); changing one result makes that check fail and a rewrite restores
+the file; a marker without a block or a block without a marker is an error; and the README
+and the documents under `docs/` contain no unescaped dollar sign outside code.

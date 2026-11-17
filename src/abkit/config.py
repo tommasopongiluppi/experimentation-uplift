@@ -12,6 +12,7 @@ REPORTS: Path = ROOT / "reports"
 TABLES: Path = REPORTS / "tables"
 FIGURES: Path = REPORTS / "figures"
 RESULTS_JSON: Path = REPORTS / "results.json"
+README: Path = ROOT / "README.md"
 
 # Data source (plain http: the original server redirects https to http)
 DATA_URL: str = (

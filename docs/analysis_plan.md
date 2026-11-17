@@ -113,22 +113,22 @@ favours the email.
 
 - **Primary analysis uses raw spend.** No value is dropped, capped or transformed.
 - **Top-coding in the source.** Among converters, the 99th percentile of spend equals its
-  maximum, $499.00, with a heap of converters exactly at that value (validation report). Spend
-  therefore appears to be capped at $499 in the source file. Effects on spend are effects on
+  maximum, \$499.00, with a heap of converters exactly at that value (validation report). Spend
+  therefore appears to be capped at \$499 in the source file. Effects on spend are effects on
   this top-coded spend, and may understate the effect on true spend if large orders respond to
   email. This is stated as a limitation.
 - **Sensitivity analysis: winsorised spend.** Spend is capped at the **95th percentile of
   converters' spend, pooled across arms**. Customers with zero spend are unchanged. The
   percentile is taken over converters only: about 99% of customers spend nothing, so any
-  percentile up to the 99th over all customers would be $0 and would wipe out the signal. The
+  percentile up to the 99th over all customers would be \$0 and would wipe out the signal. The
   cap is computed once on the pooled converters, never per arm. The primary (§6) and CUPED (§7)
   analyses are repeated on winsorised spend. **Raw and winsorised results are both reported,
   whatever they show.**
-- **Point mass in `history`.** The most common `history` value is the minimum, $29.99, and it
+- **Point mass in `history`.** The most common `history` value is the minimum, \$29.99, and it
   accounts for about an eighth of all customers (validation report). It is possibly a single
   lowest-priced purchase or a floor value in the source. Consequences:
   - **CUPED:** the covariate is not continuous. A large block of customers shares one value, and
-    the right tail is long (up to $3,345.93). θ is a linear fit and can be driven by the tail.
+    the right tail is long (up to \$3,345.93). θ is a linear fit and can be driven by the tail.
     CUPED stays unbiased, but the variance reduction may be small. The Lin adjustment, which
     includes `history_segment` indicators, is the check on this.
   - **Segments:** the `usd_0_100` history band contains the whole cluster, so its per-segment
@@ -357,7 +357,7 @@ it was made before or after seeing the outcome results.
      place: conversion ~ Beta-Binomial with the flat prior, log spend among converters ~ Normal
      with a weak Normal-Inverse-Gamma prior (μ0 = 0, κ0 = α0 = β0 = 0.01, the same for every
      arm), mean spend per customer = p · exp(μ + σ² / 2), with a posterior predictive check of the
-     log-normal against the observed converters, including the share at the $499 top-code. It
+     log-normal against the observed converters, including the share at the \$499 top-code. It
      runs on raw spend only. It has no role in the decision; it tests whether a parametric model
      agrees with the non-parametric one, and the check is reported whatever it shows.
   3. The decision rule's loss threshold is 1% of the **observed** control-arm mean spend of the
@@ -504,3 +504,8 @@ it was made before or after seeing the outcome results.
   every other policy. A single draw still differs from that expectation by sampling noise.
 - **Why.** One policy should have one value at one budget. Nothing else in the analysis
   changes.
+
+### Formatting note (2026-11-17)
+
+Dollar signs in this file are now written with a backslash so that GitHub does not render
+amounts as mathematics. No wording, number or decision changed.

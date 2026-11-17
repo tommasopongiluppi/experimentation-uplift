@@ -1248,51 +1248,6 @@ def _ranking_colour(name: str) -> str:
     return RANKING_STYLES.get(name, (SERIES, "-"))[0]
 
 
-def plot_uplift_curves(curves: pd.DataFrame, path: Path, title: str = "") -> Path:
-    """Uplift and Qini curves with bootstrap bands against the random-targeting line.
-
-    Parameters
-    ----------
-    curves : pandas.DataFrame
-        ``curves`` table of :class:`abkit.uplift.evaluation.BootstrapEvaluation`: columns
-        ``share``, ``uplift``, ``uplift_low``, ``uplift_high``, ``qini``, ``qini_low``,
-        ``qini_high``.
-    path : Path
-        Output PNG path.
-    title : str
-        Name of the pair being evaluated.
-
-    Returns
-    -------
-    Path
-        The path written.
-    """
-    panels = (("uplift", "Uplift curve"), ("qini", "Qini curve"))
-    with styled():
-        fig = Figure(figsize=(11.0, 4.8), layout="constrained")
-        axes = fig.subplots(1, 2).ravel()
-        for ax, (col, label) in zip(axes, panels, strict=True):
-            x = curves["share"].to_numpy()
-            ax.fill_between(
-                x, curves[f"{col}_low"], curves[f"{col}_high"], color=SERIES, alpha=0.18, lw=0
-            )
-            ax.plot(x, curves[col], color=SERIES, label="model ranking")
-            final = float(curves[col].iloc[-1])
-            ax.plot([0, 1], [0, final], color=MUTED, lw=1.2, ls=":", label="random")
-            ax.set_title(label)
-            ax.set_xlabel("Share of customers targeted")
-            ax.set_ylabel("Incremental responses")
-            ax.set_xlim(0, 1)
-        axes[0].legend(loc="upper left")
-        finish(
-            fig,
-            f"{title}: uplift and Qini curves with bootstrap bands"
-            if title
-            else "Uplift and Qini curves",
-        )
-    return save(fig, path)
-
-
 def _draw_calibration(ax: Axes, deciles: pd.DataFrame, colour: str = SERIES) -> None:
     pred, obs = deciles["predicted"].to_numpy(), deciles["observed"].to_numpy()
     err = np.vstack([obs - deciles["boot_low"], deciles["boot_high"] - obs])
