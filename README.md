@@ -53,7 +53,7 @@ These are the questions of the original challenge. Each answer is generated from
 |---|---|---|
 | Q1 | Which email performed better, and on which metric? | The Mens email, on all three metrics. Against the Womens email: visit rate +3.1 pp (2.4 to 3.8 pp); conversion rate +0.37 pp (0.17 to 0.57 pp); spend per customer +\$0.35 (\$0.03 to \$0.66), each significant after adjustment. |
 | Q2 | How much incremental spend per customer did each email drive? | Mens +\$0.77 (\$0.49 to \$1.05), a relative lift of +118%; Womens +\$0.42 (\$0.17 to \$0.68), a relative lift of +65%, on a no-email baseline of \$0.65 per customer. |
-| Q3 | If only 10,000 customers can be emailed, who should get which email? | By the decision rule (analysis plan D10), use the uplift model: it is the only ranking that qualifies. A ranking qualifies when its paired difference against random targeting excludes zero on spend or on visits; here that holds for the uplift model (on spend). |
+| Q3 | If only 10,000 customers can be emailed, who should get which email? | By the decision rule (analysis plan D10), use the uplift model: it is the only ranking that qualifies. A ranking qualifies when its paired difference against random targeting excludes zero on spend or on visits; here that holds for the uplift model (on spend). The evidence is thin: it qualifies in 1 of 10 fold seeds, so test it in a new randomised test before relying on it. |
 | Q4 | Which 10,000 customers should not be emailed? | No such group was found. The 10,000 customers with the lowest predicted uplift still respond to their better email: +7.0 pp visits (5.2 to 9.0 pp). |
 | Q5 | Do the effects differ across customer segments? | For the Womens email, yes: it lifts visits by +7.3 pp (6.4 to 8.2 pp) among past buyers of women's merchandise and by +1.1 pp (0.2 to 2.0 pp) among the rest (interaction adjusted p <0.001). 6 of its 21 interaction tests are significant after Benjamini-Hochberg, against 0 of 21 for the Mens email, whose effect is close to uniform. Exploratory, not a decision. |
 <!-- /RESULTS:questions -->
@@ -92,7 +92,7 @@ email.
 Spend against control is the primary family (2 tests, Holm); the other 7 comparisons are secondary (Benjamini-Hochberg). Spend uses Welch's t-test, rates a two-proportion z-test with Newcombe intervals.
 
 - **Sensitivity.** With converters' spend winsorised at \$362.20, the differences against control are +\$0.74 (\$0.47 to \$1.00) for Mens and +\$0.41 (\$0.18 to \$0.65) for Womens. A percentile bootstrap of raw spend (10,000 resamples) gives \$0.49 to \$1.07 for Mens and \$0.18 to \$0.68 for Womens, so the normal approximation is not doing the work.
-- **Bayesian readout** (Bayesian bootstrap on spend, 200,000 draws). P(Mens better than no email) = 1.000, credible interval \$0.49 to \$1.06. P(Womens better than no email) = 0.999, credible interval \$0.17 to \$0.68. P(Mens better than Womens) = 0.985, credible interval \$0.03 to \$0.66. The pre-registered rule (ship if P(better) is at least 0.95 and the expected loss is below 1% of the control mean) recommends the Mens email. The Bayesian bootstrap puts a uniform Dirichlet prior on the weights of the observed spend values and no prior on their size, so with arms this large it is expected to agree with the frequentist readout, and it does.
+- **Bayesian readout** (Bayesian bootstrap on spend, 200,000 draws). P(Mens better than no email) > 0.999, credible interval \$0.49 to \$1.06. P(Womens better than no email) > 0.999, credible interval \$0.17 to \$0.68. P(Mens better than Womens) = 0.985, credible interval \$0.03 to \$0.66. The pre-registered rule (ship if P(better) is at least 0.95 and the expected loss is below 1% of the control mean) recommends the Mens email. The Bayesian bootstrap puts a uniform Dirichlet prior on the weights of the observed spend values and no prior on their size, so with arms this large it is expected to agree with the frequentist readout, and it does.
 <!-- /RESULTS:readout -->
 
 ![Differences between arms with 95% intervals for spend, winsorised spend, conversion and visits, each shown raw, with CUPED and with the Lin regression; the three intervals coincide](reports/figures/intervals_raw_cuped_lin.png)
@@ -125,14 +125,14 @@ Simulated experiments shaped like this one (21,306 customers per arm arriving ev
 
 | Rule | False positive rate with a single look (± Monte Carlo SE) | False positive rate with 14 daily looks | Power at a 7.9% relative lift | Mean stopping day at that lift |
 |---|---|---|---|---|
-| One test at the end (no peeking) | 5.2% (±0.2%) | 4.8% (±0.2%) | 79.0% (±0.3%) | 14.0 |
-| Unadjusted test at every look, stop at the first p < 0.05 | 5.2% (±0.2%) | 21.9% (±0.3%) | 87.0% (±0.2%) | 6.7 |
-| Bayesian rule at every look, stop when P(better) leaves (0.05, 0.95) | 10.5% (±0.3%) | 38.4% (±0.3%) | 93.0% (±0.2%) | 5.3 |
-| Pocock boundary | 5.1% (±0.2%) | 4.9% (±0.2%) | 65.8% (±0.3%) | 9.7 |
-| O'Brien-Fleming boundary | 5.1% (±0.2%) | 4.9% (±0.2%) | 77.3% (±0.3%) | 10.8 |
-| Mixture SPRT (always-valid p-value) | 0.2% (±0.0%) | 0.9% (±0.1%) | 46.5% (±0.4%) | 11.7 |
+| One test at the end (no peeking) | 4.8% (±0.15%) | same rule | 79.0% (±0.29%) | 14.0 |
+| Unadjusted test at every look, stop at the first p < 0.05 | 5.2% (±0.22%) | 21.9% (±0.29%) | 87.0% (±0.24%) | 6.7 |
+| Bayesian rule at every look, stop when P(better) leaves (0.05, 0.95) | 10.5% (±0.31%) | 38.4% (±0.34%) | 93.0% (±0.18%) | 5.3 |
+| Pocock boundary | 5.1% (±0.22%) | 4.9% (±0.15%) | 65.8% (±0.34%) | 9.7 |
+| O'Brien-Fleming boundary | 5.1% (±0.22%) | 4.9% (±0.15%) | 77.3% (±0.30%) | 10.8 |
+| Mixture SPRT (always-valid p-value) | 0.2% (±0.05%) | 0.9% (±0.07%) | 46.5% (±0.35%) | 11.7 |
 
-Compare each rule with its own single-look rate. The Bayesian rule is two-sided at 10% by construction, so it starts from about twice the rate of the 5% test; peeking multiplies both. The single-look column uses 10,000 runs.
+Compare each rule with its own single-look rate. "One test at the end" is a single look by definition, so it has one rate. The Bayesian rule is two-sided at 10% by construction, so it starts from about twice the rate of the 5% test; peeking multiplies both. The single-look rates of the other rules come from 10,000 runs.
 
 The group-sequential boundaries are calibrated by simulation; for five looks they come out at 2.416 (Pocock) and 2.040 (O'Brien-Fleming), against the published 2.413 and 2.04.
 <!-- /RESULTS:peeking -->

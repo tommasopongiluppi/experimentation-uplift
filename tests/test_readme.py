@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from abkit import config
-from abkit.readme import build_blocks, fixed, join_words, p_value, pp, usd
+from abkit.readme import build_blocks, fixed, join_words, p_value, pp, probability, usd
 from abkit.report import ReadmeError, block_names, main, render_blocks, update_readme
 
 DOCS = [
@@ -45,6 +45,9 @@ def test_formatting_helpers():
     assert p_value(0.0004) == "<0.001" and p_value(0.0305) == "0.030"
     assert fixed(-0.0004) == "0.000" and fixed(-0.0006) == "-0.001"
     assert join_words(["a"]) == "a" and join_words(["a", "b", "c"]) == "a, b and c"
+    # A simulated probability is never printed as certainty.
+    assert probability(1.0) == "> 0.999" and probability(0.99947) == "> 0.999"
+    assert probability(0.985175) == "= 0.985" and probability(0.0) == "< 0.001"
 
 
 def test_readme_is_up_to_date_with_results_json():
@@ -88,3 +91,8 @@ def test_dollar_signs_are_escaped(path: Path):
     """GitHub renders text between two bare dollar signs as mathematics."""
     bare = re.findall(r"(?<!\\)\$.{0,20}", _outside_code(path.read_text()))
     assert not bare, f"{path.name}: unescaped dollar signs near {bare[:5]}"
+
+
+def test_readme_never_prints_certainty_or_a_zero_standard_error():
+    text = config.README.read_text()
+    assert "1.000" not in text and "±0.0%" not in text and "(±0.00%)" not in text

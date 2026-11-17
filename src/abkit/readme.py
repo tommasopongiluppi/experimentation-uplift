@@ -121,6 +121,18 @@ def fixed(x: float, decimals: int = 3) -> str:
     return text.removeprefix("-") if float(text) == 0 else text
 
 
+def probability(p: float) -> str:
+    """Format a probability with its relation sign: ``= 0.985``, ``> 0.999`` or ``< 0.001``.
+
+    A simulated probability is never printed as 1.000 or 0.000, which would claim certainty.
+    """
+    if p > 0.999:
+        return "> 0.999"
+    if p < 0.001:
+        return "< 0.001"
+    return f"= {p:.3f}"
+
+
 def p_value(p: float) -> str:
     """Format a p-value: three decimals, or ``<0.001``."""
     return "<0.001" if p < 0.001 else f"{p:.3f}"
@@ -436,6 +448,29 @@ def _targeting_summary(results: Results) -> str:
     )
 
 
+def _thin_evidence(results: Results) -> str:
+    """One sentence of caution about a recommendation that rests on little, or nothing."""
+    pol = results["policy"]
+    rec = pol["recommendation"]
+    chosen = rec["recommended"]
+    if chosen is None:
+        return ""
+    outcome = rec["qualifying"][chosen][0]
+    gain = _vs_expected(results, chosen, outcome)
+    seeds = (results.get("seed_robustness") or {}).get("beats_random_expectation", {})
+    count = seeds.get(chosen, {}).get(outcome)
+    unstable = bool(count and count["out_of"] and count["count"] < count["out_of"])
+    if not unstable and gain["ci_low"] >= 0.1 * gain["diff"]:
+        return ""
+    in_seeds = (
+        f": it qualifies in {count['count']} of {count['out_of']} fold seeds" if unstable else ""
+    )
+    return (
+        f" The evidence is thin{in_seeds}, so test it in a new randomised test before "
+        "relying on it."
+    )
+
+
 def _recommendation_text(results: Results) -> str:
     """State what the decision rule of analysis plan D10 gives on the current results."""
     pol = results["policy"]
@@ -508,7 +543,7 @@ def questions(results: Results) -> str:
     control_mean = _freq(results, "spend", "mens_vs_control")["mean_control"]
     q2 = f"{'; '.join(parts)}, on a no-email baseline of {usd(control_mean)} per customer."
 
-    q3 = _recommendation_text(results)
+    q3 = f"{_recommendation_text(results)}{_thin_evidence(results)}"
 
     sup = find(policy["suppressed_group"], outcome="visit")
     q4 = (
@@ -642,8 +677,8 @@ def readout(results: Results) -> str:
             f"- **Bayesian readout** (Bayesian bootstrap on spend, "
             f"{num(bayes['n_draws'])} draws). "
             + " ".join(
-                f"P({EMAIL_NAMES[r['treatment']]} better than {EMAIL_NAMES[r['control']]}) = "
-                f"{r['p_better']:.3f}, credible interval "
+                f"P({EMAIL_NAMES[r['treatment']]} better than {EMAIL_NAMES[r['control']]}) "
+                f"{probability(r['p_better'])}, credible interval "
                 f"{usd_range(r['ci_low'], r['ci_high'])}."
                 for r in posterior
             )
@@ -751,18 +786,18 @@ def peeking(results: Results, reports_dir: Path) -> str:
     single = looks_table[(looks_table["metric"] == "visit") & (looks_table["n_looks"] == 1)]
     single = single.set_index("method")
     rows = []
+
+    def rate(r: Row | pd.Series) -> str:
+        return f"{pct(r['reject_rate'])} (±{pct(r['reject_mcse'], 2)})"
+
     for method, label in SEQUENTIAL_NAMES.items():
         aa, ab = row("aa", method), row("ab_mde", method)
-        one = single.loc[method]
-        rows.append(
-            [
-                label,
-                f"{pct(one['reject_rate'])} (±{pct(one['reject_mcse'])})",
-                f"{pct(aa['reject_rate'])} (±{pct(aa['reject_mcse'])})",
-                f"{pct(ab['reject_rate'])} (±{pct(ab['reject_mcse'])})",
-                f"{ab['mean_stop_day']:.1f}",
-            ]
+        # A single test at the end is one look by definition: one rate, shown once, from
+        # the larger simulation.
+        cells = (
+            [rate(aa), "same rule"] if method == "fixed" else [rate(single.loc[method]), rate(aa)]
         )
+        rows.append([label, *cells, rate(ab), f"{ab['mean_stop_day']:.1f}"])
     naive, fixed = row("aa", "naive"), row("aa", "fixed")
     mde = seq["effects"]["ab_mde"]
     k5, published = seq["constants"]["5"], seq["published_k5_jennison_turnbull"]
@@ -786,9 +821,10 @@ def peeking(results: Results, reports_dir: Path) -> str:
                 rows,
             ),
             "",
-            "Compare each rule with its own single-look rate. The Bayesian rule is two-sided "
+            'Compare each rule with its own single-look rate. "One test at the end" is a '
+            "single look by definition, so it has one rate. The Bayesian rule is two-sided "
             "at 10% by construction, so it starts from about twice the rate of the 5% test; "
-            "peeking multiplies both. The single-look column uses "
+            "peeking multiplies both. The single-look rates of the other rules come from "
             f"{num(int(single['n_runs'].iloc[0]))} runs.",
             "",
             f"The group-sequential boundaries are calibrated by simulation; for five looks "
