@@ -11,7 +11,7 @@ that produces every number below.
 ## TL;DR
 
 <!-- RESULTS:summary -->
-**Decision: send the Mens email, to everyone who can be emailed.** Both emails beat sending nothing on spend, and the Mens email beats the Womens email. If only 10,000 emails can be sent, send the Mens email to the 10,000 most recent purchasers: no ranking is separated from the others, so use the simplest one, the recency rule, which needs no model.
+**Decision: send the Mens email, to everyone who can be emailed.** Both emails beat sending nothing on spend, and the Mens email beats the Womens email. If only 10,000 emails can be sent, send them to the 10,000 most recent purchasers. The three rankings tested (response model, recency rule, uplift model) are not separated from each other; all three bring more conversions than random targeting, but none is shown to bring more visits or spend, so the case for targeting rests on conversions. The recency rule needs no model.
 
 | Headline (two-week window) | Estimate | 95% interval | Adjusted p |
 |---|---|---|---|
@@ -23,7 +23,7 @@ that produces every number below.
 Adjusted p: rows 1 and 2, Holm across the 2 tests of the primary family (each email against no email on spend); rows 3 and 4, Benjamini-Hochberg across the 7 tests of the secondary family (every other comparison of spend, conversion and visits). Intervals are unadjusted.
 
 - **Value.** Sent to all 64,000 customers, the Mens email brings about \$49,000 of extra revenue in two weeks (\$32,000 to \$67,000). Profit cannot be computed: the data hold no cost or margin.
-- **Targeting 10,000 customers.** Extra visits: the response model 1,047 (816 to 1,287), the recency rule 879 (681 to 1,095), the uplift policy 852 (627 to 1,062). The response model has the highest point estimate, but its lead over the recency rule, 168 visits (-57 to 423), includes zero. Random targeting gives 822 in the pre-registered draw and 766 in expectation (budget times the average effect). Paired differences against that draw: the response model +225 (-33 to 492), the recency rule +57 (-177 to 291), the uplift policy +30 (-237 to 285); none excludes zero on visits, and all 3 exclude zero on conversions.
+- **Targeting 10,000 customers.** The response model, the recency rule and the uplift model are not separated from each other on visits, conversions or spend. Against random targeting all three bring more conversions (the recency rule +60 conversions, 3 to 126), but none is shown to bring more visits or spend.
 - **Whom not to email.** Nobody identified. The 10,000 customers the model ranks lowest still visit more when emailed: +7.0 pp (5.3 to 8.8 pp).
 <!-- /RESULTS:summary -->
 
@@ -197,8 +197,8 @@ Each policy picks the customers to email and the email each one gets.
 
 Values are increments over emailing nobody, estimated by inverse propensity weighting with the design probability, with a paired bootstrap (1,000 resamples). The recency rule and random targeting send the A/B winner (Mens).
 
-- **The uplift policy is not separated from the response model** on visits, conversions or spend: every paired bootstrap interval includes zero. **The uplift policy is not separated from the recency rule** on visits, conversions or spend: every paired bootstrap interval includes zero. The recency rule and the response model are not separated from each other either. The response model has the highest point estimate on visits, but with no ranking separated from another the recommendation is the simplest one, the recency rule. The analysis plan pre-registered no rule for this choice.
-- **Against random targeting** (the pre-registered draw), the paired differences in visits are +30 (-237 to 285) for the uplift policy, +225 (-33 to 492) for the response model and +57 (-177 to 291) for the recency rule: none excludes zero on visits, all 3 exclude zero on conversions and none excludes zero on spend.
+- **The uplift policy is not separated from the response model** on visits, conversions or spend: every paired bootstrap interval includes zero. **The uplift policy is not separated from the recency rule** on visits, conversions or spend: every paired bootstrap interval includes zero. The recency rule and the response model are not separated from each other either. The response model has the highest point estimate on visits, but its lead over the recency rule, 168 visits (-57 to 423), includes zero. With no ranking separated from another the recommendation is the simplest one, the recency rule. The analysis plan pre-registered no rule for this choice.
+- **Against random targeting** (the pre-registered draw), the paired differences in visits are +30 (-237 to 285) for the uplift policy, +225 (-33 to 492) for the response model and +57 (-177 to 291) for the recency rule, and in conversions +69 (6 to 129) for the uplift policy, +90 (24 to 159) for the response model and +60 (3 to 126) for the recency rule: none excludes zero on visits, all 3 exclude zero on conversions and none excludes zero on spend. So the case for targeting at all rests on conversions, an outcome the models were not trained on.
 - **Budget curve.** Extending each ranking to every budget in steps of 1,000, the recency rule is at or above the uplift policy at 18 of 63 budgets on visits and at 32 of 63 on spend. At the budget of 10,000 it is above the uplift policy on visits (879 against 852). These are point estimates; the curves cross repeatedly and no ranking leads throughout.
 - **Do-not-email list.** The 10,000 customers with the lowest predicted uplift, given their better email, gain +7.0 pp in visit rate (5.3 to 8.8 pp) and +\$0.98 in spend (\$0.41 to \$1.61). The model does not find customers who are better left alone.
 <!-- /RESULTS:policy -->

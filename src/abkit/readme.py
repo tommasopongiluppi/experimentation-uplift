@@ -257,20 +257,90 @@ def _expected_random(results: Results, outcome: str) -> tuple[float, float, floa
     return budget * ate["diff"], budget * ate["ci_low"], budget * ate["ci_high"]
 
 
+def _gains_over_random(results: Results) -> tuple[list[str], list[str]]:
+    """Outcomes on which every ranking beats the random draw, and on which none does."""
+    every, none = [], []
+    for outcome in POLICY_OUTCOMES:
+        diffs, _ = _versus_random(results, outcome)
+        ahead = [d["meaningful"] and d["diff"] > 0 for d in diffs.values()]
+        if all(ahead):
+            every.append(outcome)
+        elif not any(ahead):
+            none.append(outcome)
+    return every, none
+
+
+def _or_words(items: Iterable[str]) -> str:
+    return join_words(items).replace(" and ", " or ")
+
+
 def _targeting_reason(results: Results) -> str:
     """Write the recommendation under a budget and the reasoning behind it."""
-    winner, _ = _winner(results)
-    name, budget = EMAIL_NAMES[winner], num(results["policy"]["budget"])
+    budget = num(results["policy"]["budget"])
     if _separated_rankings(results):
         return (
             f"If only {budget} emails can be sent, the rankings are not all tied: see "
             "[Who to email](#5-who-to-email) for the one that is ahead."
         )
-    return (
-        f"If only {budget} emails can be sent, send the {name} email to the {budget} most "
-        "recent purchasers: no ranking is separated from the others, so use the simplest one, "
-        "the recency rule, which needs no model."
+    every, none = _gains_over_random(results)
+    tied = (
+        f"If only {budget} emails can be sent, send them to the {budget} most recent "
+        "purchasers. The three rankings tested (response model, recency rule, uplift model) "
+        "are not separated from each other; "
     )
+    if len(every) + len(none) < len(POLICY_OUTCOMES):
+        evidence = (
+            "against random targeting the picture differs by ranking (see "
+            "[Who to email](#5-who-to-email))."
+        )
+    elif every and none:
+        gains = join_words(OUTCOME_PLURALS[o] for o in every)
+        evidence = (
+            f"all three bring more {gains} than random targeting, but none is shown to bring "
+            f"more {_or_words(OUTCOME_PLURALS[o] for o in none)}, so the case for targeting "
+            f"rests on {gains}."
+        )
+    elif every:
+        evidence = "all three beat random targeting on visits, conversions and spend."
+    else:
+        evidence = (
+            "none is shown to beat random targeting on visits, conversions or spend, so "
+            "these data give no case for targeting."
+        )
+    return f"{tied}{evidence} The recency rule needs no model."
+
+
+def _targeting_bullet(results: Results) -> str:
+    """Two sentences: how the rankings compare with each other and with random targeting."""
+    budget = num(results["policy"]["budget"])
+    lead = f"- **Targeting {budget} customers.** "
+    if _separated_rankings(results):
+        return lead + "The rankings are not all tied; see [Who to email](#5-who-to-email)."
+    every, none = _gains_over_random(results)
+    first = (
+        "The response model, the recency rule and the uplift model are not separated from "
+        "each other on visits, conversions or spend."
+    )
+    if every and len(every) + len(none) == len(POLICY_OUTCOMES):
+        outcome = every[0]
+        d = _paired(results, "recency_rule", "random", outcome)
+        fmt = (lambda x: usd(x, 0)) if outcome == "spend" else num
+        tail = (
+            f", but none is shown to bring more {_or_words(OUTCOME_PLURALS[o] for o in none)}."
+            if none
+            else "."
+        )
+        second = (
+            f"Against random targeting all three bring more "
+            f"{join_words(OUTCOME_PLURALS[o] for o in every)} (the recency rule "
+            f"{'+' if d['diff'] > 0 else ''}{fmt(d['diff'])} {OUTCOME_PLURALS[outcome]}, "
+            f"{fmt(d['ci_low'])} to {fmt(d['ci_high'])}){tail}"
+        )
+    elif not every and len(none) == len(POLICY_OUTCOMES):
+        second = "None is shown to beat random targeting on visits, conversions or spend."
+    else:
+        second = "Against random targeting the picture differs by ranking and outcome."
+    return f"{lead}{first} {second}"
 
 
 def _adjustment_note(results: Results, rows: list[Row]) -> str:
@@ -295,7 +365,6 @@ def summary(results: Results) -> str:
     winner, other = _winner(results)
     name, other_name = EMAIL_NAMES[winner], EMAIL_NAMES[other]
     policy = results["policy"]
-    budget = policy["budget"]
     spend = {c: _freq(results, "spend", c) for c in ("mens_vs_control", "womens_vs_control")}
     head, sign = _head_to_head(results, "spend")
     visit = _freq(results, "visit", f"{winner}_vs_control")
@@ -327,30 +396,6 @@ def summary(results: Results) -> str:
     everyone = _policy(results, f"all_{winner}", "spend")
     thousands = [round(everyone[k], -3) for k in ("incremental_total", "ci_low", "ci_high")]
 
-    values = {r: _policy(results, r, "visit") for r in RANKINGS}
-    ordered = sorted(RANKINGS, key=lambda r: -values[r]["incremental_total"])
-    listed = ", ".join(
-        f"{RANKING_PROSE[r]} {num(values[r]['incremental_total'])} "
-        f"({num_range(values[r]['ci_low'], values[r]['ci_high'])})"
-        for r in ordered
-    )
-    best = ordered[0]
-    if best == "recency_rule":
-        lead_note = "The recency rule has the highest point estimate."
-    else:
-        d = _paired(results, best, "recency_rule", "visit")
-        lead_note = (
-            f"{RANKING_PROSE[best].capitalize()} has the highest point estimate, but its lead "
-            f"over the recency rule, {num(d['diff'])} visits "
-            f"({num_range(d['ci_low'], d['ci_high'])}), "
-            f"{'excludes' if d['meaningful'] else 'includes'} zero."
-        )
-    draw = _policy(results, "random", "visit")
-    expected, _, _ = _expected_random(results, "visit")
-    diffs, verdict = _versus_random(results, "visit")
-    _, verdict_conversion = _versus_random(results, "conversion")
-    against = ", ".join(f"{RANKING_PROSE[r]} {_signed_range(diffs[r])}" for r in ordered)
-
     suppressed = find(policy["suppressed_group"], outcome="visit")
     no_group = suppressed["ci_low"] > 0
     return "\n".join(
@@ -369,11 +414,7 @@ def summary(results: Results) -> str:
             f"brings about {usd(thousands[0], 0)} of extra revenue in two weeks "
             f"({usd_range(thousands[1], thousands[2], 0)}). Profit cannot be computed: the "
             "data hold no cost or margin.",
-            f"- **Targeting {num(budget)} customers.** Extra visits: {listed}. {lead_note} "
-            f"Random targeting gives {num(draw['incremental_total'])} in the pre-registered "
-            f"draw and {num(expected)} in expectation (budget times the average effect). "
-            f"Paired differences against that draw: {against}; {verdict} on visits, and "
-            f"{verdict_conversion} on conversions.",
+            _targeting_bullet(results),
             "- **Whom not to email.** "
             + (
                 f"Nobody identified. The {num(suppressed['n_suppressed'])} customers the model "
@@ -871,14 +912,22 @@ def policy(results: Results, reports_dir: Path) -> str:
         )
     if not _separated_rankings(results):
         best = max(RANKINGS, key=lambda r: _policy(results, r, "visit")["incremental_total"])
+        lead = _paired(results, best, "recency_rule", "visit")
         verdicts.append(
             "The recency rule and the response model are not separated from each other "
             f"either. {RANKING_PROSE[best].capitalize()} has the highest point estimate on "
-            "visits, but with no ranking separated from another the recommendation is the "
-            "simplest one, the recency rule. The analysis plan pre-registered no rule for "
-            "this choice."
+            "visits"
+            + (
+                ""
+                if best == "recency_rule"
+                else f", but its lead over the recency rule, {num(lead['diff'])} visits "
+                f"({num_range(lead['ci_low'], lead['ci_high'])}), includes zero"
+            )
+            + ". With no ranking separated from another the recommendation is the simplest "
+            "one, the recency rule. The analysis plan pre-registered no rule for this choice."
         )
     visit_diffs, _ = _versus_random(results, "visit")
+    conversion_diffs, _ = _versus_random(results, "conversion")
     random_verdicts = join_words(
         f"{_versus_random(results, outcome)[1]} on {OUTCOME_PLURALS[outcome]}"
         for outcome in POLICY_OUTCOMES
@@ -886,6 +935,16 @@ def policy(results: Results, reports_dir: Path) -> str:
     random_line = (
         "**Against random targeting** (the pre-registered draw), the paired differences in "
         "visits are "
+        + join_words(f"{_signed_range(visit_diffs[r])} for {RANKING_PROSE[r]}" for r in RANKINGS)
+        + ", and in conversions "
+        + join_words(
+            f"{_signed_range(conversion_diffs[r])} for {RANKING_PROSE[r]}" for r in RANKINGS
+        )
+        + f": {random_verdicts}. So the case for targeting at all rests on "
+        "conversions, an outcome the models were not trained on."
+        if _gains_over_random(results) == (["conversion"], ["visit", "spend"])
+        else "**Against random targeting** (the pre-registered draw), the paired differences "
+        "in visits are "
         + join_words(f"{_signed_range(visit_diffs[r])} for {RANKING_PROSE[r]}" for r in RANKINGS)
         + f": {random_verdicts}."
     )
