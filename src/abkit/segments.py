@@ -653,7 +653,7 @@ def simulate_segment_discoveries(
     global_null = m0 == n_segments
     any_raw, fdr_bh = 1 - (1 - alpha) ** m0, q * m0 / n_segments
     for method, discoveries, any_reference, fdr_reference in (
-        ("raw", p < alpha, any_raw, any_raw if global_null else math.nan),
+        ("raw", p <= alpha, any_raw, any_raw if global_null else math.nan),
         ("bh", bh_rows(p) <= q, fdr_bh if global_null else math.nan, fdr_bh),
     ):
         false = discoveries[:, is_null].sum(axis=1)

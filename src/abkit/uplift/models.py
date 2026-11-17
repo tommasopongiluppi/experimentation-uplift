@@ -27,8 +27,8 @@ from abkit.report import json_records, update_results, write_table
 from abkit.uplift.crossfit import (
     N_FOLDS,
     TreatmentPair,
+    assign_folds,
     cross_fit_with_other,
-    stratified_folds,
     treatment_pair,
 )
 from abkit.uplift.evaluation import (
@@ -63,7 +63,8 @@ SCORES_NAME: str = "uplift_scores.parquet"
 SELECTION_METRIC: str = "qini_normalised"
 DEVIATION: str = (
     "D6: history_segment dropped from the features; D7: S-learner added and hyperparameters "
-    "chosen on an inner validation split instead of fixed defaults"
+    "chosen on an inner validation split instead of fixed defaults; D11: one fold assignment "
+    "of all customers, every customer scored by one held-out fold model per pair"
 )
 
 
@@ -79,7 +80,7 @@ def score_pair(
     outcome : str
         ``"visit"`` or ``"conversion"``.
     rng : numpy.random.Generator
-        Source of the fold split, model seeds and the random baseline.
+        Source of the model seeds and the random baseline (the folds come with ``pair``).
     grid : Grid
         Hyperparameter grid searched on the inner split of every fit.
 
@@ -88,13 +89,21 @@ def score_pair(
     pandas.DataFrame
         One row per customer in the pair, then one per customer of the third arm. Columns
         ``customer_id``, ``arm`` (the pair's email), ``outcome``, ``in_pair``, ``treated``
-        and ``fold`` (-1 outside the pair), ``y`` and one score column per name in
-        ``RANKINGS``. Rows outside the pair are scored by the fold models, which never saw
-        them; they are for the policy stage and take no part in the evaluation.
+        (-1 outside the pair), ``fold``, ``y`` and one score column per name in
+        ``RANKINGS``. Every row, inside or outside the pair, is scored by the one model of
+        its own fold, which never saw it. Rows outside the pair are for the policy stage
+        and take no part in the evaluation.
+
+    Raises
+    ------
+    ValueError
+        If ``pair`` was built without folds.
     """
+    if pair.folds is None or pair.folds_other is None:
+        raise ValueError("score_pair needs a pair built with folds from assign_folds.")
     y = pair.outcomes[outcome].to_numpy().astype(int)
     y_other = pair.outcomes_other[outcome].to_numpy().astype(int)
-    folds = stratified_folds(pair.treated, y, rng, N_FOLDS)
+    folds, folds_other = pair.folds, pair.folds_other
     learners = {
         "s_learner": SLearner(rng, grid),
         "t_learner": TLearner(rng, grid),
@@ -109,12 +118,14 @@ def score_pair(
             "in_pair": np.r_[np.ones(pair.n, bool), np.zeros(pair.n_other, bool)],
             "treated": np.r_[pair.treated, np.full(pair.n_other, -1)],
             "y": np.r_[y, y_other],
-            "fold": np.r_[folds, np.full(pair.n_other, -1)],
+            "fold": np.r_[folds, folds_other],
         }
     )
     for name, learner in learners.items():
         logger.info("Cross-fitting %s for %s / %s", name, pair.arm, outcome)
-        in_pair, other = cross_fit_with_other(pair.X, pair.treated, y, learner, folds, pair.X_other)
+        in_pair, other = cross_fit_with_other(
+            pair.X, pair.treated, y, learner, folds, pair.X_other, folds_other
+        )
         out[name] = np.r_[in_pair, other]
     X_all = pd.concat([pair.X, pair.X_other], ignore_index=True)
     out["recency_rule"] = recency_rule_score(
@@ -266,11 +277,12 @@ def run_uplift_models(
     """
     rng = np.random.default_rng(config.SEEDS["uplift"])
     customers = load_customers(db_path)
+    folds = assign_folds(customers, rng, N_FOLDS)  # one assignment for every pair and outcome
     tables, figures = reports_dir / "tables", reports_dir / "figures"
     metric_tables, comparisons, score_tables = [], [], []
     summary: dict[str, Any] = {}
     for arm in config.TREATMENTS:
-        pair = treatment_pair(customers, arm)
+        pair = treatment_pair(customers, arm, folds)
         for outcome in outcomes:
             scores = score_pair(pair, outcome, rng, grid)
             score_tables.append(scores)

@@ -10,7 +10,7 @@ from scipy import stats
 
 from abkit import config
 from abkit.uplift import learners as learners_module
-from abkit.uplift.crossfit import cross_fit, stratified_folds, treatment_pair
+from abkit.uplift.crossfit import assign_folds, cross_fit, stratified_folds, treatment_pair
 from abkit.uplift.evaluation import qini_coefficient
 from abkit.uplift.features import FEATURE_NAMES, build_features
 from abkit.uplift.learners import (
@@ -295,8 +295,11 @@ def test_metrics_table_layout():
 
 
 def test_score_pair_columns(customers):
-    pair = treatment_pair(customers.head(1_200), "mens")
+    subset = customers.head(1_200)
     rng = np.random.default_rng(1)
+    with pytest.raises(ValueError, match="folds"):
+        score_pair(treatment_pair(subset, "mens"), "visit", rng)
+    pair = treatment_pair(subset, "mens", assign_folds(subset, rng))
     scores = score_pair(pair, "visit", rng)
     assert len(scores) == pair.n + pair.n_other
     assert scores["in_pair"].sum() == pair.n
@@ -306,7 +309,9 @@ def test_score_pair_columns(customers):
     assert set(in_pair["fold"]) == set(range(5))
     np.testing.assert_array_equal(in_pair["y"], pair.outcomes["visit"])
     other = scores[~scores["in_pair"]]
-    assert (other["fold"] == -1).all() and (other["treated"] == -1).all()
+    # Third-arm customers are held out too: each has a fold and is scored by that fold's model.
+    assert set(other["fold"]) == set(range(5)) and (other["treated"] == -1).all()
+    np.testing.assert_array_equal(other["fold"], pair.folds_other)
     np.testing.assert_array_equal(other["customer_id"], pair.other_customer_id)
 
 

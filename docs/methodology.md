@@ -397,6 +397,16 @@ and at the level a primary-family test must meet under Holm (alpha / 2 = 0.025),
 CUPED; the customers per arm needed to detect a 5%, 10% and 20% relative lift; and the power
 curve, power against the true relative lift, at the actual sample size.
 
+**Two variance conventions.** The planning tables (`power.csv`, the sample sizes and the
+power curve) give both arms the control arm's variance, which is all that is known before
+an experiment. An email that works raises the variance of its own arm, because more
+customers have non-zero spend, so the realised standard error is larger than the planning
+one. `reports/tables/power_mde_per_arm.csv` therefore repeats the MDE for each email
+against control with each arm's own realised variance: `se = sqrt(s_t²/n_t + s_c²/n_c)`
+(or the CUPED standard error of the comparison) and `MDE = (z_{1−α/2} + z_{power}) se`,
+with the observed difference and its ratio to that MDE next to it. The README quotes the
+per-arm values. The test recomputes one row from the raw outcomes.
+
 **Formula.** For a difference in means or rates with a common variance σ² per customer, n_t and
 n_c customers per arm and a two-sided test at level alpha with target power 1 − β:
 - se = sqrt(σ² (1 − r) (1 / n_t + 1 / n_c)), where r is the fraction of the variance CUPED
@@ -850,8 +860,11 @@ and separately among the runs that reject.
 
 **What the tables show.** Naive peeking turns the nominal 5% into a false positive rate several
 times larger with daily looks, and the rate keeps growing with the number of looks (it would
-tend to 1 with infinitely many looks). Bayesian peeking under a flat prior is worse, as the
-alpha = 0.10 equivalence predicts. Pocock, O'Brien–Fleming and mSPRT keep the A/A rate at or
+tend to 1 with infinitely many looks). Bayesian peeking under a flat prior ends higher still,
+but it does not start from the same place: the rule is two-sided at alpha = 0.10, so with a
+single look it already rejects about twice as often as the 5% test. The like-for-like
+comparison is each rule's rate under daily looks against its own single-look rate, which is
+how the README table sets them out. Pocock, O'Brien–Fleming and mSPRT keep the A/A rate at or
 below 5% for every number of looks. They pay in different coins: Pocock gives up the most power
 at the horizon because its final boundary is far above 1.96; O'Brien–Fleming costs almost no
 power at day 14 but rarely stops early; mSPRT is conservative under the null (its rate is well
@@ -1017,21 +1030,41 @@ guard is tested on every forbidden name, on derived names, and on the allowed na
 design, so it is the realised share of the email arm, `p_treat = n_email / (n_email +
 n_control)`, never a fitted propensity.
 
-**Cross-fitting.** Customers are split into five folds, stratified jointly by arm and the
-binary outcome (four cells), with scikit-learn's `StratifiedKFold` seeded from
-`config.SEEDS["uplift"]`. For each fold the learner is fitted on the other four folds and
-scores the held-out fold, so every customer gets exactly one out-of-fold score from models
-that never saw that customer. `cross_fit` takes any `fit_predict(X_train, treated_train,
-y_train, X_test)` callable, so the T-learner, X-learner and the response-model baseline share
-the same folds and the same loop.
+**Cross-fitting.** All customers, whatever their arm, are assigned once to five folds,
+stratified jointly by arm, visit and conversion, with scikit-learn's `StratifiedKFold`
+seeded from `config.SEEDS["uplift"]` (`assign_folds`). The one assignment serves both pairs
+and both outcomes. In each pair the model of fold `k` is fitted on the pair's customers
+outside fold `k` and scores every customer in fold `k`: the pair's held-out customers and
+the customers of the third arm, who take no part in fitting but need a score for the
+targeting policies. Every customer therefore has exactly one score per pair, from one
+model that never saw that customer. `cross_fit` takes any `fit_predict(X_train,
+treated_train, y_train, X_test)` callable, so the learners and the response-model baseline
+share the same folds and the same loop.
+
+**Why one model per customer matters.** A policy's value is estimated by inverse
+propensity weighting, which is valid only if the policy does not depend on the realised
+arm. An earlier version scored third-arm customers with the average of the five fold
+models. An average is less noisy than a single model, so those customers were less likely
+to reach the top or the bottom of a ranking, the policies selected on the arm, and their
+values were biased (analysis plan D11). With one model per customer the noise of a score
+has the same distribution in every arm.
+
+**Leakage guard by value.** Before any model is fitted, `assert_no_leaked_values` rejects a
+feature that equals the outcome or the treatment indicator or is a one-to-one recoding of
+it, whatever the column is called. The name-based guard cannot see a renamed column. A
+noisy or partial function of an outcome cannot be detected from values alone.
 
 **Assumptions.** Randomisation inside each pair, which the SRM and balance checks support.
 Stratifying on the outcome only balances the folds; the outcome is never a feature.
 
-**Tests.** `p_treat` equals the arm count ratio; every (arm, outcome) cell is spread across
-folds to within one customer; the same seed gives the same folds. With a `fit_predict` that
-returns the mean outcome of its training rows, each fold's scores equal the mean over the
-other folds exactly, which shows that no row scores itself.
+**Tests.** `p_treat` equals the arm count ratio; every (arm, visit, conversion) cell is
+spread across folds to within one customer; the same seed gives the same folds. With a
+`fit_predict` that returns the mean outcome of its training rows, each fold's scores equal
+the mean over the other folds exactly, which shows that no row scores itself, and a
+third-arm row in fold `k` gets the score of fold `k`'s model alone. On pure-noise features
+a rule that selects the highest scores picks customers from the three arms in the design
+proportions (sample-ratio test), while the former fold-averaged scoring fails the same
+test. A copied, rescaled or relabelled outcome among the features is rejected.
 
 ## Uplift and Qini curves, their areas, uplift at k and calibration
 
@@ -1168,7 +1201,8 @@ a random 10,000 get the A/B winner; the recency rule sends the A/B winner to the
 most recent purchasers; the response model emails the 10,000 most likely responders with
 the email under which they are more likely to visit; the uplift policy gives each customer
 the email with the higher predicted uplift and emails the 10,000 with the highest such
-uplift, if positive; the exploratory mens-by-default policy holds the mens uplift at its
+uplift, if positive; the plan's first baseline gives the same random 10,000 customers one of
+the two emails each at random; the exploratory mens-by-default policy holds the mens uplift at its
 average effect and uses the womens model only where it predicts more; and the suppression
 policy emails everyone with their better email except the 10,000 lowest predicted uplifts
 (the do-not-email list). For that list the realised uplift of their better email is
@@ -1216,54 +1250,45 @@ email, and identical policies give a paired difference of exactly zero. At the f
 the budget curve reproduces the policy of the same name for all four rankings, random
 targeting included. The stage runs end to end on the synthetic fixture.
 
-**What the experiment says about the policies.** Read from `reports/tables/policy.csv`,
-`policy_comparison.csv` and the `policy` section of `results.json`; the numbers live there,
-not here.
+**Comparison with random targeting.** Random targeting of `k` customers with the A/B
+winner has a known expected increment, `k × ATE`, where the ATE is the winner's difference
+in means against control. Each budgeted policy is compared with it by
 
-- The level-calibration check passes for both emails: the mean predicted uplift lies inside
-  the Newcombe interval of the observed average effect, so the two models' levels can be
-  compared.
-- The uplift policy is **not clearly better than the recency rule** on visits, conversions
-  or spend: every paired bootstrap difference between the two includes zero. Its spend point
-  estimate is well above the rule's, but the interval is wide because spend is almost all
-  zeros. The response model is nominally ahead of the uplift policy on visits, again without
-  a meaningful paired difference. Against random targeting, the uplift policy, the response
-  model and the recency rule are each separated on conversions and none of them on visits or
-  spend. No ranking is separated from another, so the README recommends the simplest one,
-  the recency rule; the analysis plan pre-registered no rule for choosing between policies.
-- The reason is visible in the uplift-model section: the mens email, which the A/B winner
-  policies send, lifts visits for nearly everyone with no detectable heterogeneity, so any
-  rule that sends it to 10,000 customers captures about the same number of incremental
-  visits. The uplift model's advantage is confined to choosing *which* customers get the
-  womens email, a minority of the budget.
-- The suppression list (the 10,000 lowest predicted uplifts) does **not** identify
-  customers who should not be emailed: their realised uplift under their better email is
-  positive, with an interval that excludes zero. Withholding their email costs visits. The
-  honest answer to "whom should we not email" is that this experiment finds no such group.
-- The exploratory mens-by-default policy does not improve on the uplift policy.
-- The budget curve (`reports/tables/policy_budget_curve.csv`) extends four rankings from
-  the fixed budget to every budget: the uplift policy, the response model, the recency rule
-  and random targeting. It holds point estimates only, so it shows where the rankings sit,
-  not which differences are real; the paired bootstrap comparisons exist at the fixed
-  budget only. It shows the same thing at every budget:
-  - On visits the four rankings are close throughout. Up to about half the population the
-    response model is nominally the highest and random targeting the lowest; beyond that
-    the lines cross repeatedly and no ranking leads.
-  - **The recency rule tracks the uplift policy closely on visits and is nominally at or
-    above it at most budgets around the fixed budget, including the fixed budget itself.**
-    Across the whole grid the uplift policy is above the recency rule more often than not,
-    but by amounts no larger than the gaps between the other rankings.
-  - On spend the uplift policy is nominally ahead at small budgets (not the very smallest),
-    with the recency rule well below it there. At larger budgets the order reverses often,
-    and the recency rule is at or above the uplift policy at most budgets in the upper half
-    of the grid. The spend curves are far noisier than the visit curves.
-  - The curves meet at the full population only up to the choice of email: the recency
-    rule and random targeting both send the A/B winner to everyone and end at the same
-    point, while the uplift policy and the response model send each customer their own
-    choice.
-  - The random-targeting line uses the same random permutation as the fixed-budget random
-    policy in `policy.csv`, so at the fixed budget the curve and the table agree exactly
-    (analysis plan D9).
+`D = n (V(π) − V(nobody)) − k (mean(Y | winner arm) − mean(Y | control))`,
+
+with both terms recomputed on the same bootstrap resample of customers, so the percentile
+interval of `D` accounts for the data they share (`versus_random_expectation`,
+`reports/tables/policy_vs_random.csv`, analysis plan D12). A single random draw of `k`
+customers has the same expectation but adds its own sampling noise; it is kept as a policy
+for transparency, and its row in the table shows how far that draw fell from the
+expectation. The plan's first baseline (random customers, each given one of the two emails
+at random) is evaluated as a policy too.
+
+**Decision rule.** The recommendation follows analysis plan D10, applied by
+`recommend_ranking` to these comparisons: a ranking qualifies only if its interval against
+the random expectation lies above zero on spend or on visits; among the rankings that
+qualify the simplest is chosen (recency rule, then response model, then uplift model)
+unless a more complex one is separated from it; if none qualifies, nothing is recommended.
+The rule was written after the uncorrected results had been seen and before the corrected
+ones were computed.
+
+**Selection must not depend on the arm.** For every model-based policy, the do-not-email
+list, the recency rule and the random draw, the stage counts the selected customers by
+realised arm and tests the counts against the arm shares of the whole population with the
+sample-ratio chi-square test (`arm_counts_check`, `reports/tables/policy_arm_counts.csv`).
+A failure means the selection depends on the arm and the IPW value is biased.
+
+**Tests added with these checks.** On planted data with a known effect, the comparison
+recovers the expectation `k × ATE` and the oracle ranking's gain over it, and the random
+draw's difference from the expectation is noise around zero. The decision rule is checked
+case by case on hand-made tables. The arm-count check passes for scores drawn
+independently of the arm and fails for scores that are less noisy in one arm; a test on
+the committed results requires every model-based policy and the do-not-email list to pass.
+
+**Where the results are.** This document describes methods. What the experiment says
+about the policies is in the README, generated from `reports/results.json`
+(`policy` section) and the tables `policy.csv`, `policy_comparison.csv`,
+`policy_vs_random.csv`, `policy_arm_counts.csv` and `policy_budget_curve.csv`.
 
 ## Repeated cross-fitting over fold seeds
 
@@ -1288,23 +1313,13 @@ untouched. The summary (median, min, max, win count) is checked on a toy table w
 known answer. The stage runs end to end with a fast stand-in scorer, and (slow) with the
 real learners on the fixture.
 
-**What the repeated cross-fitting shows.** Read from `reports/tables/uplift_seed_robustness.csv`
-and the `seed_robustness` section of `results.json`.
-
-- On the womens pair the ranking of the learners is stable: the X-learner beats the
-  response model in every seed, and all three uplift learners stay well above it. The
-  choice of the X-learner for the policy does not hinge on the committed seed.
-- On the mens pair every uplift learner sits at zero in every seed, while the response
-  model keeps a small positive coefficient. The conclusion that the mens effect has no
-  detectable heterogeneity is not a seed artefact.
-- The uplift policy's incremental visits at the budget move across seeds by an amount
-  comparable to the width of the paired bootstrap interval, and the committed seed is at
-  the low end of the range. The bootstrap intervals therefore understate the total
-  uncertainty: fold-assignment and model-seed variability add about as much again. The
-  headline verdict is unchanged, in that no seed puts the uplift policy outside the
-  sampling uncertainty of the recency rule, but a reader should take the seed-to-seed
-  range as the honest spread of the policy's value and the median across seeds, not the
-  committed seed, as its central estimate.
+**How to read it.** The bootstrap intervals of the policy values hold the folds fixed, so
+they leave out the variability from the fold assignment and the model seeds. The spread
+across seeds measures that part. The committed seed is one draw from it; the median across
+seeds is the better central estimate of a model-based policy's value, and the range the
+honest spread. The stage records the incremental visits of the uplift policy and of the
+response-model policy under every seed. The results are in the README, generated from the
+`seed_robustness` section of `results.json`.
 
 ## Pipeline: stages, cache and fast mode
 

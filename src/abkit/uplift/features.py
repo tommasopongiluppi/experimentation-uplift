@@ -68,6 +68,49 @@ def assert_pre_treatment_only(columns: Iterable[str]) -> None:
         )
 
 
+def assert_no_leaked_values(X: pd.DataFrame, forbidden: dict[str, np.ndarray]) -> None:
+    """Raise if a feature column carries the values of an outcome or of the treatment.
+
+    The name check of :func:`assert_pre_treatment_only` cannot see a renamed column. This
+    check compares values: a feature is rejected when it equals a forbidden vector or is a
+    one-to-one recoding of it (the two take the same number of distinct values and each
+    feature value goes with a single forbidden value), which also catches a rescaled or
+    relabelled copy. It cannot catch a noisy or partial function of an outcome; nothing
+    short of knowing where a column came from can.
+
+    Parameters
+    ----------
+    X : pandas.DataFrame
+        Feature matrix.
+    forbidden : dict of str to numpy.ndarray
+        Name to vector (the outcome used as the target, the treatment indicator), each
+        aligned with the rows of ``X``. A constant vector is skipped.
+
+    Raises
+    ------
+    ForbiddenFeatureError
+        Naming every feature that reproduces a forbidden vector.
+    """
+    bad = []
+    for name, values in forbidden.items():
+        values = np.asarray(values)
+        n_values = np.unique(values).size
+        if len(values) != len(X) or n_values < 2:
+            continue
+        for col in X.columns:
+            feature = X[col].to_numpy()
+            if np.unique(feature).size != n_values:
+                continue
+            by_level = pd.Series(values).groupby(feature)
+            if (by_level.min() == by_level.max()).all():
+                bad.append(f"{col} reproduces {name}")
+    if bad:
+        raise ForbiddenFeatureError(
+            f"Feature values reproduce an outcome or the treatment: {bad}. "
+            f"Only pre-treatment variables are allowed: {config.PRE_TREATMENT_COLS}."
+        )
+
+
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """Build the uplift feature matrix from a cleaned-schema DataFrame.
 

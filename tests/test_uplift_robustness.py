@@ -12,6 +12,7 @@ from abkit.uplift.robustness import (
     LABEL,
     LEARNERS,
     POLICY_METRIC,
+    POLICY_METRICS,
     QINI_METRIC,
     fold_seed_generators,
     run_seed_robustness,
@@ -106,7 +107,8 @@ def test_seed_metrics_rows(customers, rng):
     }
     table = seed_metrics(scores, customers, "mens", seed=3, budget=300)
     assert (table["seed"] == 3).all()
-    assert len(table) == 2 * len(LEARNERS) + 1
+    assert len(table) == 2 * len(LEARNERS) + len(POLICY_METRICS)
+    assert set(table.loc[table["arm"] == "both", "metric"]) == set(POLICY_METRICS.values())
     qini = table[table["metric"] == QINI_METRIC]
     assert set(qini["arm"]) == set(config.TREATMENTS) and set(qini["ranking"]) == set(LEARNERS)
     assert np.isfinite(table["value"]).all()
@@ -128,7 +130,7 @@ def test_run_seed_robustness_writes_outputs(fixture_db, customers, tmp_path, rng
         fixture_db, tmp_path, scores_dir, n_seeds=3, budget=300, winner="womens", scorer=scorer
     )
     assert set(table["seed"]) == {0, 1, 2}
-    assert len(table) == 3 * (2 * len(LEARNERS) + 1)
+    assert len(table) == 3 * (2 * len(LEARNERS) + len(POLICY_METRICS))
     saved = pd.read_csv(tmp_path / "tables" / "uplift_seed_robustness.csv")
     assert len(saved) == len(table)
     text = (tmp_path / "results.json").read_text()
@@ -137,7 +139,7 @@ def test_run_seed_robustness_writes_outputs(fixture_db, customers, tmp_path, rng
     assert section["n_seeds"] == 3 and section["ab_winner"] == "womens"
     assert section["x_beats_response_model_womens"]["out_of"] == 3
     spread = pd.DataFrame(section["spread"])
-    assert len(spread) == 2 * len(LEARNERS) + 1
+    assert len(spread) == 2 * len(LEARNERS) + len(POLICY_METRICS)
     assert (spread["min"] <= spread["median"]).all() and (spread["median"] <= spread["max"]).all()
     # Seed 0 reproduces the committed scores' Qini exactly.
     seed0 = table[(table["seed"] == 0) & (table["metric"] == QINI_METRIC)]
@@ -146,10 +148,14 @@ def test_run_seed_robustness_writes_outputs(fixture_db, customers, tmp_path, rng
 
 @pytest.mark.slow
 def test_run_seed_robustness_with_real_learners_on_fixture(fixture_db, customers, tmp_path, rng):
-    from abkit.uplift.crossfit import treatment_pair
+    from abkit.uplift.crossfit import assign_folds, treatment_pair
 
+    folds = assign_folds(customers, rng)
     committed = pd.concat(
-        [score_pair(treatment_pair(customers, arm), "visit", rng) for arm in config.TREATMENTS],
+        [
+            score_pair(treatment_pair(customers, arm, folds), "visit", rng)
+            for arm in config.TREATMENTS
+        ],
         ignore_index=True,
     )
     scores_dir = tmp_path / "processed"

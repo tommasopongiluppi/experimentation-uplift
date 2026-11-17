@@ -114,7 +114,10 @@ file or from the CSV tables it names.
 | `sample_size_table` | `path` | CSV of required sample sizes per relative lift. |
 | `curve_table` | `path` | CSV of power against relative lift. |
 | `figure` | `path` | Path of the PNG figure, relative to the reports directory. |
-| `mde_rows` | `list[dict]` | One record per row of the MDE table. |
+| `mde_rows` | `list[dict]` | One record per row of the planning MDE table (control variance). |
+| `mde_variance_note` | `str` | Which variance each MDE table uses. |
+| `mde_per_arm_rows` | `list[dict]` | MDE of each email against control with each arm's realised variance. |
+| `per_arm_table` | `path` | CSV of the per-arm MDE table. |
 | `sample_size_rows` | `list[dict]` | One record per row of the sample-size table. |
 
 ## `bayes_rates`
@@ -275,7 +278,16 @@ file or from the CSV tables it names.
 | `uplift_versus` | `dict` | Outcome -> policy -> paired difference against uplift. |
 | `uplift_beats_recency_rule` | `dict[str, bool]` | Outcome -> whether the paired difference excludes zero in favour. |
 | `uplift_beats_response_model` | `dict[str, bool]` | Same, against the response model. |
-| `uplift_beats_random` | `dict[str, bool]` | Same, against random targeting. |
+| `uplift_beats_random` | `dict[str, bool]` | Same, against the random draw. |
+| `versus_random_expected` | `list[dict]` | Each budgeted policy against the exact expectation of random targeting, paired. |
+| `recommendation` | `dict` | The decision rule of analysis plan D10 applied to the comparisons. |
+| `recommendation.rule` | `str` | The rule in words. |
+| `recommendation.qualifying` | `dict` | Ranking -> outcomes on which it beats the expectation. |
+| `recommendation.recommended` | `str|null` | Recommended ranking, or null if none qualifies. |
+| `recommendation.basis` | `str` | Why. |
+| `arm_counts` | `list[dict]` | Realised-arm counts of each selected group with a sample-ratio test. |
+| `vs_random_table` | `path` | CSV of the comparison with the random expectation. |
+| `arm_counts_table` | `path` | CSV of the arm counts. |
 | `calibration` | `list[dict]` | Level-calibration check of each email's scores. |
 | `suppressed_group` | `list[dict]` | Realised uplift of the do-not-email list. |
 | `profiles` | `list[dict]` | Pre-treatment profile of the targeted and suppressed. |

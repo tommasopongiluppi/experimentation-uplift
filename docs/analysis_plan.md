@@ -279,8 +279,9 @@ it was made before or after seeing the outcome results.
 
 ### D1. Multiplicity for the winsorised sensitivity rows; frequentist bootstrap for spend
 
-- **Date:** 2026-11-03. **Sections:** §6, §8. **Made before** any outcome was compared between
-  arms (written before the frequentist readout was first run).
+- **Date:** 2026-11-03. **Sections:** §6, §8. **Recorded with the code:** this entry entered
+  the repository in the same commit as the frequentist readout it concerns, so the history
+  cannot show that it was decided before the results were seen (see D14).
 - **What changed.**
   1. §8 repeats the primary analysis on winsorised spend but does not say how its p-values are
      adjusted. They mirror the raw-spend rows and are never pooled with them: the two
@@ -294,8 +295,8 @@ it was made before or after seeing the outcome results.
      does not replace the Welch interval or change any decision.
   3. Implementation detail for §8: the 95th percentile of converters' spend uses linear
      interpolation between order statistics (the numpy / pandas default).
-- **Why.** The plan left these unspecified; fixing them before seeing results keeps them from
-  being chosen by their outcome.
+- **Why.** The plan left these unspecified. They were meant to be fixed before the results
+  were seen; the repository cannot prove that they were (see D14).
 
 
 ### D2. CUPED θ pooled over the two arms of each comparison
@@ -396,20 +397,23 @@ it was made before or after seeing the outcome results.
 
 ### D6. Uplift features: `history_segment` dropped
 
-- **Date:** 2026-11-04. **Section:** §11. **Made before** any uplift model was fitted; the
-  feature matrix was being written when this entry was added.
+- **Date:** 2026-11-04. **Section:** §11. **Recorded with the code:** this entry entered the
+  repository in the same commit as the feature matrix, one commit before the first uplift
+  learners; the history cannot show more than that order (see D14).
 - **What changed.** §11 lists `history_segment` among the uplift features. It is not used.
   The feature matrix holds `recency`, `history`, `mens`, `womens`, `newbie` and one-hot
   indicators for `zip_code` and `channel`.
 - **Why.** `history_segment` is `history` binned into seven dollar bands, so it is redundant:
   it carries no information the numeric column does not already carry, and the tree models
-  can place their own splits on `history`. Removing a redundant copy cannot be chosen by its
-  effect on a result because no uplift model had been fitted.
+  can place their own splits on `history`. The reason given is redundancy, which does not
+  depend on any result; that no uplift model had been fitted when it was decided is the
+  author's statement, not something the history shows (see D14).
 
 ### D7. Uplift learners: S-learner added; hyperparameters chosen on an inner validation split
 
-- **Date:** 2026-11-04. **Section:** §11. **Made before** any uplift model was fitted on the
-  experiment data (the learners were being written when this entry was added).
+- **Date:** 2026-11-04. **Section:** §11. **Recorded with the code:** this entry entered the
+  repository in the same commit as the learners and their first evaluation, so the history
+  cannot show that it was decided before the results were seen (see D14).
 - **What changed.**
   1. An **S-learner** (one classifier with the treatment indicator as a feature) is fitted
      and evaluated next to the pre-specified T- and X-learners, on the same folds.
@@ -527,6 +531,74 @@ it was made before or after seeing the outcome results.
   comparison happened to look best. The rule is fixed before the corrected numbers so that
   it cannot be fitted to them. It is not a pre-registered rule in the sense of §1 to §12: it
   was written with knowledge of the uncorrected results, and the memo says so.
+
+### D11. Cross-fitting: one fold assignment for all customers, one model per customer
+
+- **Date:** 2026-11-17. **Section:** §11. **Made after** an independent review and after the
+  uncorrected policy results had been seen. It is a correction of an error, not a choice
+  between valid options.
+- **What was wrong.** §11 promises that "every customer gets an out-of-fold score from
+  models that never saw that customer". For a customer in the third arm of a pair (the
+  other email) the code scored them with the *average of the five fold models*, while the
+  pair's own customers were scored by one fold model each. An average of five models is
+  less noisy than one model, so a customer's score depended on their realised arm, and so
+  did every rule that selects on the scores: the uplift policy, the response model, the
+  mens-by-default policy and the do-not-email list. The inverse-propensity estimate of a
+  policy's value assumes the selection does not depend on the arm, so those values were
+  biased. The recency rule and random targeting use no model and were not affected.
+- **What changed.** All customers are assigned to five folds once, stratified by arm, visit
+  and conversion. In each pair the model of fold *k* is fitted on the pair's customers
+  outside fold *k* and scores every customer in fold *k*, whatever their arm. Every customer
+  has exactly one score per pair from one model that did not see them. The uplift, policy
+  and seed-robustness results are recomputed. The policy stage now writes the realised-arm
+  counts of every selected group with a sample-ratio test
+  (`reports/tables/policy_arm_counts.csv`), and the tests fail if a model-based policy
+  selects on the arm.
+- **Why.** The earlier values of the model-based policies are wrong and are withdrawn.
+
+### D12. Rankings are compared with the exact expectation of random targeting
+
+- **Date:** 2026-11-17. **Section:** §11. **Made after** an independent review and after the
+  uncorrected policy results had been seen.
+- **What changed.** §11 evaluates each policy against the baselines, among them random
+  targeting, which D9 fixed as one random draw of customers. One draw is a noisy stand-in
+  for random targeting: whether a ranking "beats random" then depends on how lucky the
+  draw was. Each ranking is now also compared with the exact expectation of random
+  targeting, the number of emails times the A/B winner's average treatment effect
+  (difference in means), by a paired bootstrap in which both terms are recomputed on the
+  same resampled customers (`reports/tables/policy_vs_random.csv`). The decision rule (D10)
+  uses this comparison. The draw stays in the tables for transparency, with its own
+  difference from the expectation.
+- **Why.** A conclusion should not rest on one draw of the baseline.
+
+### D13. Baseline 1 implemented; the A/B winner must have a positive effect
+
+- **Date:** 2026-11-17. **Sections:** §6, §11. **Made after** an independent review.
+- **What changed.**
+  1. §11 lists two random baselines: (1) 10,000 random customers each given one of the two
+     emails at random, and (2) the A/B winner sent to 10,000 random customers. Only the
+     second had been implemented, under the name "random targeting", and D7 item 3 wrongly
+     implied both were evaluated. Baseline 1 is now a policy of its own
+     (`random_any_email`): the same random customers as baseline 2, each given one of the
+     two emails with equal probability. "Random targeting" in the memo means baseline 2.
+  2. §6 defines the A/B winner as the email that beats control on spend. The code tested
+     significance only; it now also requires a positive difference, so a significantly
+     harmful email cannot be the winner. This changes nothing on these data.
+- **Why.** To do what the plan says.
+
+### D14. Corrections to the wording of D1, D6 and D7; one convention for significance
+
+- **Date:** 2026-11-17. **Made after** an independent review.
+- **What changed.**
+  1. D1, D6 and D7 said they were "made before" the results they concern. Each entered the
+     repository in the same commit as the code that produced those results, so the history
+     cannot support that statement. Their timing lines now say so. The content of the
+     three deviations is unchanged. Only this plan's own commit, which precedes all readout
+     code, is verifiably earlier than the results.
+  2. A test is called significant when its adjusted p-value is at or below the level
+     (`p_adj <= alpha`), everywhere. The readout used a strict inequality and the segment
+     analysis a non-strict one; no flag changed.
+- **Why.** The record should claim only what can be checked.
 
 ### Formatting note (2026-11-17)
 

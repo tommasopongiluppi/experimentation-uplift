@@ -19,7 +19,11 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
 from abkit import config
-from abkit.uplift.features import assert_pre_treatment_only, build_features
+from abkit.uplift.features import (
+    assert_no_leaked_values,
+    assert_pre_treatment_only,
+    build_features,
+)
 
 N_FOLDS: int = 5
 
@@ -49,8 +53,11 @@ class TreatmentPair:
     other_customer_id, X_other, outcomes_other : numpy.ndarray, pandas.DataFrame
         The customers in the third arm (the other email). They take no part in fitting or
         evaluating this pair's models, but the policy stage needs this pair's score for them,
-        so :func:`cross_fit_with_other` scores them with the fold models, none of which saw
-        them.
+        so :func:`cross_fit_with_other` scores each of them with the one fold model of
+        their own fold, exactly as it scores the pair's held-out customers.
+    folds, folds_other : numpy.ndarray or None
+        Fold of every customer in the pair and in the third arm, from one assignment of all
+        customers (:func:`assign_folds`). None when the pair was built without folds.
     """
 
     arm: str
@@ -62,6 +69,8 @@ class TreatmentPair:
     other_customer_id: np.ndarray
     X_other: pd.DataFrame
     outcomes_other: pd.DataFrame
+    folds: np.ndarray | None = None
+    folds_other: np.ndarray | None = None
 
     @property
     def n(self) -> int:
@@ -74,7 +83,7 @@ class TreatmentPair:
         return int(self.other_customer_id.size)
 
 
-def treatment_pair(df: pd.DataFrame, arm: str) -> TreatmentPair:
+def treatment_pair(df: pd.DataFrame, arm: str, folds: np.ndarray | None = None) -> TreatmentPair:
     """Subset a cleaned ``customers`` frame to one email arm plus control.
 
     Parameters
@@ -84,6 +93,9 @@ def treatment_pair(df: pd.DataFrame, arm: str) -> TreatmentPair:
         and the outcome columns.
     arm : str
         One of ``config.TREATMENTS``.
+    folds : numpy.ndarray, optional
+        Fold of every row of ``df`` from :func:`assign_folds`; split into the pair's and the
+        third arm's folds.
 
     Returns
     -------
@@ -99,6 +111,10 @@ def treatment_pair(df: pd.DataFrame, arm: str) -> TreatmentPair:
         raise ValueError(f"arm must be one of {config.TREATMENTS}, got {arm!r}.")
     keep = df[config.ARM_COL].isin([arm, config.CONTROL]).to_numpy()
     sub, other = df.loc[keep], df.loc[~keep]
+    if folds is not None:
+        folds = np.asarray(folds)
+        if folds.shape != (len(df),):
+            raise ValueError(f"folds must have one entry per row of df, got {folds.shape}.")
     treated = (sub[config.ARM_COL].to_numpy() == arm).astype(int)
     if treated.sum() == 0 or treated.sum() == treated.size:
         raise ValueError(f"Pair {arm!r} vs control needs customers in both arms.")
@@ -112,7 +128,48 @@ def treatment_pair(df: pd.DataFrame, arm: str) -> TreatmentPair:
         other_customer_id=other["customer_id"].to_numpy(),
         X_other=build_features(other),
         outcomes_other=other[list(config.OUTCOME_COLS)].reset_index(drop=True),
+        folds=None if folds is None else folds[keep],
+        folds_other=None if folds is None else folds[~keep],
     )
+
+
+def assign_folds(df: pd.DataFrame, rng: np.random.Generator, n_folds: int = N_FOLDS) -> np.ndarray:
+    """Assign every customer, whatever their arm, to one fold.
+
+    One assignment serves both email-vs-control pairs and both outcomes. In each pair the
+    model of fold ``k`` is fitted on the pair's customers outside fold ``k`` and scores
+    every customer in fold ``k``: the pair's held-out customers and the third arm's. Every
+    customer therefore gets exactly one score per pair, from one model that did not see
+    them, and the noise of that score does not depend on the customer's arm.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Cleaned ``customers`` rows with ``arm``, ``visit`` and ``conversion``.
+    rng : numpy.random.Generator
+        Source of randomness; one integer is drawn from it as scikit-learn's ``random_state``.
+    n_folds : int
+        Number of folds.
+
+    Returns
+    -------
+    numpy.ndarray
+        Integer fold id in ``[0, n_folds)`` per row of ``df``, stratified jointly by arm,
+        visit and conversion, so every pair and outcome is stratified by arm and outcome.
+    """
+    strata = (
+        df[config.ARM_COL].astype(str)
+        + "_"
+        + df["visit"].astype(int).astype(str)
+        + "_"
+        + df["conversion"].astype(int).astype(str)
+    ).to_numpy()
+    seed = int(rng.integers(0, np.iinfo(np.int32).max))
+    splitter = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    folds = np.empty(len(df), dtype=int)
+    for k, (_, test_idx) in enumerate(splitter.split(np.zeros((len(df), 1)), strata)):
+        folds[test_idx] = k
+    return folds
 
 
 def stratified_folds(
@@ -165,11 +222,16 @@ def cross_fit_with_other(
     fit_predict: FitPredict,
     folds: np.ndarray,
     X_other: pd.DataFrame,
+    folds_other: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Out-of-fold scores for ``X`` plus fold-averaged scores for rows outside the pair.
+    """Out-of-fold scores for ``X`` and for rows outside the pair, one model per row.
 
-    Each fold model scores its held-out rows and all of ``X_other``; the other rows' scores
-    are averaged over the folds. No model saw any row it scores.
+    The model of fold ``k`` is fitted on the rows of ``X`` outside fold ``k`` and scores the
+    rows of ``X`` in fold ``k`` and the rows of ``X_other`` whose fold is ``k``. Every row,
+    inside or outside the pair, is scored by exactly one model, and no model saw a row it
+    scores. Scoring the outside rows with the average of all fold models instead would give
+    them less noisy scores than the pair's rows, and a rule that selects on the scores would
+    then select on the arm.
 
     Parameters
     ----------
@@ -177,29 +239,43 @@ def cross_fit_with_other(
         As in :func:`cross_fit`.
     X_other : pandas.DataFrame
         Feature rows that take no part in fitting (the third arm). May be empty.
+    folds_other : numpy.ndarray
+        Fold of every row of ``X_other``; each must be one of the folds of ``X``.
 
     Returns
     -------
     tuple of numpy.ndarray
-        ``(scores, other_scores)``: one out-of-fold score per row of ``X`` and one
-        fold-averaged score per row of ``X_other``.
+        ``(scores, other_scores)``: one out-of-fold score per row of ``X`` and one per row
+        of ``X_other``.
+
+    Raises
+    ------
+    ForbiddenFeatureError
+        If a feature is named after, or reproduces the values of, the outcome or treatment.
+    ValueError
+        If ``folds_other`` has the wrong length or names a fold ``X`` does not have, or if
+        ``fit_predict`` returns the wrong number of scores.
     """
     assert_pre_treatment_only(X.columns)
     assert_pre_treatment_only(X_other.columns)
     treated, y, folds = np.asarray(treated), np.asarray(y), np.asarray(folds)
-    scores = np.full(len(X), np.nan)
-    other = np.zeros(len(X_other))
+    assert_no_leaked_values(X, {"the treatment": treated, "the outcome": y})
+    folds_other = np.asarray(folds_other)
     fold_ids = np.unique(folds)
+    if folds_other.shape != (len(X_other),) or not np.isin(folds_other, fold_ids).all():
+        raise ValueError("folds_other must give every row of X_other one of the folds of X.")
+    scores = np.full(len(X), np.nan)
+    other = np.full(len(X_other), np.nan)
     for k in fold_ids:
-        test = folds == k
+        test, test_other = folds == k, folds_other == k
         train = ~test
         n_test = int(test.sum())
-        X_score = pd.concat([X.loc[test], X_other], ignore_index=True)
+        X_score = pd.concat([X.loc[test], X_other.loc[test_other]], ignore_index=True)
         out = np.asarray(fit_predict(X.loc[train], treated[train], y[train], X_score), dtype=float)
-        if out.shape != (n_test + len(X_other),):
+        if out.shape != (len(X_score),):
             raise ValueError(f"fit_predict returned shape {out.shape} for fold {k}.")
         scores[test] = out[:n_test]
-        other += out[n_test:] / fold_ids.size
+        other[test_other] = out[n_test:]
     return scores, other
 
 
@@ -238,5 +314,7 @@ def cross_fit(
     ValueError
         If ``fit_predict`` returns the wrong number of scores for a fold.
     """
-    scores, _ = cross_fit_with_other(X, treated, y, fit_predict, folds, X.iloc[:0])
+    scores, _ = cross_fit_with_other(
+        X, treated, y, fit_predict, folds, X.iloc[:0], np.empty(0, dtype=int)
+    )
     return scores

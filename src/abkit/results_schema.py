@@ -146,7 +146,14 @@ SCHEMA: dict[str, dict[str, Field]] = {
         "sample_size_table": _f("path", "CSV of required sample sizes per relative lift."),
         "curve_table": _f("path", "CSV of power against relative lift."),
         "figure": _f("path", _FIGURE),
-        "mde_rows": _f("list[dict]", "One record per row of the MDE table."),
+        "mde_rows": _f(
+            "list[dict]", "One record per row of the planning MDE table (control variance)."
+        ),
+        "mde_variance_note": _f("str", "Which variance each MDE table uses."),
+        "mde_per_arm_rows": _f(
+            "list[dict]", "MDE of each email against control with each arm's realised variance."
+        ),
+        "per_arm_table": _f("path", "CSV of the per-arm MDE table."),
         "sample_size_rows": _f("list[dict]", "One record per row of the sample-size table."),
     },
     "bayes_rates": {
@@ -302,7 +309,24 @@ SCHEMA: dict[str, dict[str, Field]] = {
             "dict[str, bool]", "Outcome -> whether the paired difference excludes zero in favour."
         ),
         "uplift_beats_response_model": _f("dict[str, bool]", "Same, against the response model."),
-        "uplift_beats_random": _f("dict[str, bool]", "Same, against random targeting."),
+        "uplift_beats_random": _f("dict[str, bool]", "Same, against the random draw."),
+        "versus_random_expected": _f(
+            "list[dict]",
+            "Each budgeted policy against the exact expectation of random targeting, paired.",
+        ),
+        "recommendation": _f(
+            "dict",
+            "The decision rule of analysis plan D10 applied to the comparisons.",
+            rule=_f("str", "The rule in words."),
+            qualifying=_f("dict", "Ranking -> outcomes on which it beats the expectation."),
+            recommended=_f("str|null", "Recommended ranking, or null if none qualifies."),
+            basis=_f("str", "Why."),
+        ),
+        "arm_counts": _f(
+            "list[dict]", "Realised-arm counts of each selected group with a sample-ratio test."
+        ),
+        "vs_random_table": _f("path", "CSV of the comparison with the random expectation."),
+        "arm_counts_table": _f("path", "CSV of the arm counts."),
         "calibration": _f("list[dict]", "Level-calibration check of each email's scores."),
         "suppressed_group": _f("list[dict]", "Realised uplift of the do-not-email list."),
         "profiles": _f("list[dict]", "Pre-treatment profile of the targeted and suppressed."),

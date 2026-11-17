@@ -25,7 +25,7 @@ import pandas as pd
 
 from abkit import config
 from abkit.report import json_records, update_results, write_table
-from abkit.uplift.crossfit import TreatmentPair, treatment_pair
+from abkit.uplift.crossfit import TreatmentPair, assign_folds, treatment_pair
 from abkit.uplift.evaluation import qini_coefficient
 from abkit.uplift.models import SCORES_NAME, load_customers, score_pair
 from abkit.uplift.policy import (
@@ -45,6 +45,12 @@ OUTCOME: str = POLICY_OUTCOME
 TABLE_NAME: str = "uplift_seed_robustness"
 QINI_METRIC: str = "qini_normalised"
 POLICY_METRIC: str = "uplift_policy_incremental_visits"
+RESPONSE_POLICY_METRIC: str = "response_model_policy_incremental_visits"
+#: The two model-based policies whose value depends on the fold seed, and their metric names.
+POLICY_METRICS: dict[str, str] = {
+    "uplift": POLICY_METRIC,
+    "response_model": RESPONSE_POLICY_METRIC,
+}
 POLICY_ARM: str = "both"
 
 Scorer = Callable[[TreatmentPair, str, np.random.Generator], pd.DataFrame]
@@ -122,17 +128,18 @@ def seed_metrics(
     )
     assignments, _ = build_policies(inputs, winner, np.random.default_rng(0), budget)
     y = inputs.y[OUTCOME].to_numpy()
-    uplift, _ = policy_value(assignments["uplift"], inputs.arm, y)
     nobody, _ = policy_value(assignments["nobody"], inputs.arm, y)
-    rows.append(
-        {
-            "seed": seed,
-            "arm": POLICY_ARM,
-            "ranking": "uplift",
-            "metric": POLICY_METRIC,
-            "value": float(inputs.n * (uplift[0] - nobody[0])),
-        }
-    )
+    for ranking, metric in POLICY_METRICS.items():
+        value, _ = policy_value(assignments[ranking], inputs.arm, y)
+        rows.append(
+            {
+                "seed": seed,
+                "arm": POLICY_ARM,
+                "ranking": ranking,
+                "metric": metric,
+                "value": float(inputs.n * (value[0] - nobody[0])),
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -226,9 +233,10 @@ def run_seed_robustness(
             budget=budget,
         )
     ]
-    pairs = {arm: treatment_pair(customers, arm) for arm in config.TREATMENTS}
     for k, rng in enumerate(fold_seed_generators(n_seeds), start=1):
         logger.info("Seed %d of %d", k, n_seeds - 1)
+        folds = assign_folds(customers, rng)  # one assignment of all customers per seed
+        pairs = {arm: treatment_pair(customers, arm, folds) for arm in config.TREATMENTS}
         scores = {arm: scorer(pairs[arm], OUTCOME, rng) for arm in config.TREATMENTS}
         tables.append(seed_metrics(scores, customers, winner, seed=k, budget=budget))
     table = pd.concat(tables, ignore_index=True)

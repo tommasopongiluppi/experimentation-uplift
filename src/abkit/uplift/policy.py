@@ -45,7 +45,7 @@ import numpy as np
 import pandas as pd
 
 from abkit import config, plots
-from abkit.frequentist import _quantile_mcse, diff_in_proportions
+from abkit.frequentist import _quantile_mcse, diff_in_proportions, srm_test
 from abkit.report import _json_value, json_records, update_results, write_table
 from abkit.uplift.learners import recency_rule_score
 from abkit.uplift.models import SCORES_NAME, load_customers
@@ -56,14 +56,16 @@ LABEL: str = "policy"
 POLICY_LEARNER: str = "x_learner"
 POLICY_OUTCOME: str = "visit"
 LEARNER_REASON: str = (
-    "X-learner visit scores for both emails: best and meaningfully above the baselines for the "
-    "womens email; for the mens email no ranking beat random, so a 'best' mens learner chosen by "
-    "its Qini coefficient would be selected on noise."
+    "X-learner visit scores for both emails. The learner was chosen post hoc on an earlier "
+    "evaluation that the correction of analysis plan D11 has since replaced (D8); the choice "
+    "was not revisited afterwards, so that the policy is not selected again on the corrected "
+    "results."
 )
 POLICIES: tuple[str, ...] = (
     "nobody",
     "all_mens",
     "all_womens",
+    "random_any_email",
     "random",
     "recency_rule",
     "response_model",
@@ -75,6 +77,7 @@ POLICY_LABELS: dict[str, str] = {
     "nobody": "email nobody",
     "all_mens": "everyone gets the mens email",
     "all_womens": "everyone gets the womens email",
+    "random_any_email": "random 10,000, each given one of the two emails at random",
     "random": "random 10,000 get the A/B winner",
     "recency_rule": "recency rule: 10,000 most recent get the A/B winner",
     "response_model": "response model: 10,000 most likely responders",
@@ -84,6 +87,7 @@ POLICY_LABELS: dict[str, str] = {
 }
 EXPLORATORY: tuple[str, ...] = ("uplift_mens_default",)
 BUDGETED: tuple[str, ...] = (
+    "random_any_email",
     "random",
     "recency_rule",
     "response_model",
@@ -100,7 +104,16 @@ PROFILE_SHARES: dict[str, tuple[str, ...]] = {
     "zip_code": tuple(config.CATEGORY_MAPS["zip_code"].values()),
     "channel": tuple(config.CATEGORY_MAPS["channel"].values()),
 }
+#: The rankings a recommendation can name, simplest first (analysis plan D10).
+RANKINGS_BY_SIMPLICITY: tuple[str, ...] = ("recency_rule", "response_model", "uplift")
+#: Outcomes on which a ranking can qualify under the decision rule.
+DECISION_OUTCOMES: tuple[str, ...] = ("spend", "visit")
+#: Groups whose realised-arm counts are checked: a policy that is a function of
+#: pre-treatment variables and out-of-fold scores cannot select on the arm.
+MODEL_BASED: tuple[str, ...] = ("uplift", "response_model", "uplift_mens_default")
 TABLE_NAME: str = "policy"
+VS_RANDOM_TABLE_NAME: str = "policy_vs_random"
+ARM_COUNTS_TABLE_NAME: str = "policy_arm_counts"
 COMPARISON_TABLE_NAME: str = "policy_comparison"
 CURVE_TABLE_NAME: str = "policy_budget_curve"
 PROFILE_TABLE_NAME: str = "policy_profiles"
@@ -109,7 +122,9 @@ SUPPRESSED_TABLE_NAME: str = "policy_suppressed_uplift"
 FIGURE_NAME: str = "policy_budget_curve.png"
 DEVIATION: str = (
     "D8: mens-by-default policy (exploratory) and the level-calibration check added after the "
-    "uplift results were seen; the same X-learner is used for both emails"
+    "uplift results were seen; the same X-learner is used for both emails. D9: one random "
+    "draw. D10: decision rule. D12: rankings compared with the exact expectation of random "
+    "targeting. D13: baseline 1 implemented"
 )
 
 
@@ -204,7 +219,8 @@ def load_policy_inputs(
 def ab_winner(results_path: Path = config.RESULTS_JSON) -> tuple[str, str]:
     """Return the A/B winner by the analysis plan's rule, read from ``results.json``.
 
-    The email that beats control on spend in the primary frequentist family; if both do, the
+    The email that beats control on spend in the primary frequentist family (a significant
+    and positive difference; a significantly harmful email is not a winner); if both do, the
     one with the larger estimated difference; if neither does, the Bayesian spend readout's
     recommended email. When no email meets either rule (possible on small or synthetic data,
     never on the real experiment), the email ahead in the Bayesian head-to-head on spend is
@@ -228,7 +244,7 @@ def ab_winner(results_path: Path = config.RESULTS_JSON) -> tuple[str, str]:
         and r["family"] == "primary"
         and r["treatment"] in config.TREATMENTS
     ]
-    winners = [r for r in rows if r["significant"]]
+    winners = [r for r in rows if r["significant"] and r["diff"] > 0]
     if len(winners) == 2:
         best = max(winners, key=lambda r: r["diff"])
         return best[
@@ -317,8 +333,9 @@ def build_policies(
         The A/B winner email, sent by the random, recency-rule and all-winner policies.
     rng : numpy.random.Generator
         Draws the one random permutation of the customers that defines random targeting:
-        the random policy emails its first ``budget`` customers, and the budget curve its
-        first ``k`` at every budget ``k``.
+        the random policies email its first ``budget`` customers, and the budget curve its
+        first ``k`` at every budget ``k``. It then draws one of the two emails per customer
+        for the plan's first baseline (random customers, random email).
     budget : int
         Maximum emails for the budgeted policies; the suppression policy withholds this many.
 
@@ -346,6 +363,7 @@ def build_policies(
     random_mask[random_order[:budget]] = True
     random_score = np.empty(n)
     random_score[random_order] = np.arange(n, 0, -1)  # first in the permutation ranks highest
+    random_email = emails[rng.integers(0, emails.size, size=n)]
     recency = recency_rule_score(
         inputs.pre["recency"].to_numpy(), inputs.pre["history"].to_numpy(), inputs.customer_id
     )
@@ -363,6 +381,7 @@ def build_policies(
         "nobody": np.full(n, control),
         "all_mens": np.full(n, "mens"),
         "all_womens": np.full(n, "womens"),
+        "random_any_email": send(random_mask, random_email),
         "random": send(random_mask, winner),
         "recency_rule": send(top_k(recency, budget), winner),
         "response_model": send(top_k(resp_best, budget), resp_email),
@@ -565,6 +584,209 @@ def evaluate_policies(
     return policy_table, comparison_table, pd.DataFrame(sup_rows)
 
 
+def versus_random_expectation(
+    inputs: PolicyInputs,
+    assignments: dict[str, np.ndarray],
+    winner: str,
+    rng: np.random.Generator,
+    n_resamples: int = N_RESAMPLES,
+    alpha: float = config.ALPHA,
+) -> pd.DataFrame:
+    """Paired difference between each budgeted policy and the expectation of random targeting.
+
+    Random targeting of ``k`` customers with the A/B winner has a known expected increment,
+    ``k`` times the winner's average treatment effect, so no random draw is needed. For a
+    policy that emails ``k`` customers the difference is::
+
+        D = n (V_ipw(policy) - V_ipw(nobody)) - k (mean(Y | winner arm) - mean(Y | control))
+
+    Both terms are computed on the same bootstrap resample of customers, so the interval of
+    ``D`` accounts for the data they share. A single random draw of ``k`` customers has the
+    same expectation but adds its own sampling noise to the comparison.
+
+    Parameters
+    ----------
+    inputs : PolicyInputs
+        Arms and outcomes.
+    assignments : dict of str to numpy.ndarray
+        From :func:`build_policies`; the policies in ``BUDGETED`` are compared.
+    winner : str
+        The A/B winner, whose average effect defines the expectation.
+    rng : numpy.random.Generator
+        Bootstrap resamples. Seeded like :func:`evaluate_policies`, it draws the same
+        resamples.
+    n_resamples : int
+        Number of resamples.
+    alpha : float
+        1 - interval level.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per budgeted policy and outcome: ``policy``, ``outcome``, ``n_emailed``,
+        ``incremental_total``, ``expected_random`` with ``expected_ci_low`` and
+        ``expected_ci_high``, ``diff``, ``ci_low``, ``ci_high``, ``meaningful`` (the interval
+        excludes zero) and ``policy_better`` (it lies above zero).
+    """
+    names = [name for name in assignments if name in BUDGETED]
+    n, p = inputs.n, config.ARM_PROBABILITY
+    Y = inputs.y[list(OUTCOMES)].to_numpy()
+    M = np.stack([(assignments[k] == inputs.arm).astype(float) / p for k in names])
+    nobody = (inputs.arm == config.CONTROL).astype(float) / p
+    in_winner = (inputs.arm == winner).astype(float)
+    in_control = (inputs.arm == config.CONTROL).astype(float)
+    k = np.array([email_counts(assignments[name])["n_emailed"] for name in names], dtype=float)
+
+    def evaluate(w: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        total = n * ((M * w) @ Y - (w * nobody) @ Y) / w.sum()  # (P, m)
+        ate = (w * in_winner) @ Y / (w @ in_winner) - (w * in_control) @ Y / (w @ in_control)
+        return total, k[:, None] * ate[None, :]
+
+    total, expected = evaluate(np.ones(n))
+    reps_d = np.empty((n_resamples, *total.shape))
+    reps_e = np.empty((n_resamples, *total.shape))
+    probs = np.full(n, 1.0 / n)
+    for b in range(n_resamples):
+        t_b, e_b = evaluate(rng.multinomial(n, probs).astype(float))
+        reps_d[b], reps_e[b] = t_b - e_b, e_b
+    lo, hi = np.quantile(reps_d, [alpha / 2, 1 - alpha / 2], axis=0)
+    e_lo, e_hi = np.quantile(reps_e, [alpha / 2, 1 - alpha / 2], axis=0)
+    rows = []
+    for i, name in enumerate(names):
+        for j, outcome in enumerate(OUTCOMES):
+            rows.append(
+                {
+                    "policy": name,
+                    "outcome": outcome,
+                    "n_emailed": int(k[i]),
+                    "incremental_total": total[i, j],
+                    "expected_random": expected[i, j],
+                    "expected_ci_low": e_lo[i, j],
+                    "expected_ci_high": e_hi[i, j],
+                    "diff": total[i, j] - expected[i, j],
+                    "ci_low": lo[i, j],
+                    "ci_high": hi[i, j],
+                    "meaningful": bool(lo[i, j] > 0 or hi[i, j] < 0),
+                    "policy_better": bool(lo[i, j] > 0),
+                    "n_resamples": n_resamples,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def recommend_ranking(vs_random: pd.DataFrame, comparison: pd.DataFrame) -> dict[str, Any]:
+    """Apply the decision rule of analysis plan D10 to the comparison tables.
+
+    A ranking qualifies only if its paired difference against the expectation of random
+    targeting lies above zero on spend or on visits. Among the rankings that qualify the
+    simplest is chosen (recency rule, then response model, then uplift model), unless a
+    more complex qualifying ranking is separated from it on spend or on visits. If none
+    qualifies, nothing is recommended.
+
+    Parameters
+    ----------
+    vs_random : pandas.DataFrame
+        From :func:`versus_random_expectation`.
+    comparison : pandas.DataFrame
+        Paired policy comparisons from :func:`evaluate_policies`.
+
+    Returns
+    -------
+    dict
+        ``qualifying`` (ranking to the outcomes it qualifies on), ``recommended`` (a ranking
+        or None), ``basis`` (the rule's reasoning in words) and ``rule``.
+    """
+    qualifying: dict[str, list[str]] = {}
+    for ranking in RANKINGS_BY_SIMPLICITY:
+        rows = vs_random[(vs_random["policy"] == ranking) & vs_random["policy_better"]]
+        outcomes = [o for o in DECISION_OUTCOMES if o in set(rows["outcome"])]
+        if outcomes:
+            qualifying[ranking] = outcomes
+
+    def separated(better: str, worse: str) -> bool:
+        """Whether ``better`` minus ``worse`` lies above zero on a decision outcome."""
+        for outcome in DECISION_OUTCOMES:
+            on_outcome = comparison[comparison["outcome"] == outcome]
+            direct = on_outcome[
+                (on_outcome["reference"] == better) & (on_outcome["policy"] == worse)
+            ]
+            reverse = on_outcome[
+                (on_outcome["reference"] == worse) & (on_outcome["policy"] == better)
+            ]
+            if direct.empty and reverse.empty:
+                raise LookupError(f"no paired comparison of {better} and {worse} on {outcome}")
+            if not direct.empty and direct["ci_low"].iloc[0] > 0:
+                return True
+            if direct.empty and reverse["ci_high"].iloc[0] < 0:
+                return True
+        return False
+
+    recommended, basis = None, "no ranking qualifies"
+    if qualifying:
+        recommended = next(iter(qualifying))
+        basis = f"{recommended} is the simplest ranking that qualifies"
+        for ranking in list(qualifying)[1:]:
+            if separated(ranking, recommended):
+                recommended = ranking
+                basis = f"{ranking} qualifies and is separated from every simpler qualifier"
+    return {
+        "rule": (
+            "A ranking is recommended only if its paired difference against the exact "
+            "expectation of random targeting excludes zero on spend or on visits; among "
+            "those that qualify the simplest is chosen unless a more complex one is "
+            "separated from it (analysis plan D10)."
+        ),
+        "qualifying": qualifying,
+        "recommended": recommended,
+        "basis": basis,
+    }
+
+
+def arm_counts_check(
+    inputs: PolicyInputs, groups: dict[str, np.ndarray], alpha: float = config.SRM_ALPHA
+) -> pd.DataFrame:
+    """Realised-arm counts of selected groups with a sample-ratio test against the design.
+
+    A policy is a function of pre-treatment variables and out-of-fold scores, so the
+    customers it selects must be spread over the three arms like the whole population.
+    If they are not, the selection depends on the arm and the IPW value is biased.
+
+    Parameters
+    ----------
+    inputs : PolicyInputs
+        Realised arms.
+    groups : dict of str to numpy.ndarray
+        Group name to boolean mask of the selected customers.
+    alpha : float
+        Failure threshold of the chi-square test.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per group: ``group``, ``n``, the count in each arm, the expected count in
+        each arm (the group size times the arm's share of all customers), ``statistic``,
+        ``p_value`` and ``passed``.
+    """
+    shares = {arm: float((inputs.arm == arm).mean()) for arm in config.ARMS}
+    rows = []
+    for group, mask in groups.items():
+        counts = {arm: int((inputs.arm[mask] == arm).sum()) for arm in config.ARMS}
+        res = srm_test(counts, shares, alpha)
+        rows.append(
+            {
+                "group": group,
+                "n": int(mask.sum()),
+                **{f"n_{arm}": counts[arm] for arm in config.ARMS},
+                **{f"expected_{arm}": float(res.expected[arm]) for arm in config.ARMS},
+                "statistic": float(res.statistic),
+                "p_value": float(res.p_value),
+                "alpha": alpha,
+                "passed": bool(res.passed),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def budget_curve(
     inputs: PolicyInputs,
     info: dict[str, Any],
@@ -763,6 +985,21 @@ def run_policy(
         n_resamples,
         cost_per_email,
     )
+    vs_random = versus_random_expectation(
+        inputs, assignments, winner, np.random.default_rng(config.SEEDS["bootstrap"]), n_resamples
+    )
+    recommendation = recommend_ranking(vs_random, comparison)
+    arm_counts = arm_counts_check(
+        inputs,
+        {
+            **{name: assignments[name] != config.CONTROL for name in MODEL_BASED},
+            "do_not_email": info["suppressed"],
+            "recency_rule": assignments["recency_rule"] != config.CONTROL,
+            "random": assignments["random"] != config.CONTROL,
+        },
+    )
+    if not arm_counts.loc[arm_counts["group"].isin([*MODEL_BASED, "do_not_email"]), "passed"].all():
+        logger.warning("A model-based policy selects on the realised arm; its IPW value is biased.")
     curve = budget_curve(inputs, info, winner, cost_per_email=cost_per_email)
     calibration = calibration_check(inputs)
     profile_table = profiles(
@@ -781,6 +1018,8 @@ def run_policy(
     write_table(profile_table, PROFILE_TABLE_NAME, tables)
     write_table(calibration, CALIBRATION_TABLE_NAME, tables)
     write_table(suppressed, SUPPRESSED_TABLE_NAME, tables)
+    write_table(vs_random, VS_RANDOM_TABLE_NAME, tables)
+    write_table(arm_counts, ARM_COUNTS_TABLE_NAME, tables)
     figure = plots.plot_budget_curve(curve, figures / FIGURE_NAME, budget, comparison)
 
     def headline(policy: str, outcome: str) -> dict[str, Any]:
@@ -859,6 +1098,11 @@ def run_policy(
             "uplift_beats_random": {
                 outcome: bool(versus("random", outcome)["reference_better"]) for outcome in OUTCOMES
             },
+            "versus_random_expected": json_records(vs_random),
+            "recommendation": recommendation,
+            "arm_counts": json_records(arm_counts),
+            "vs_random_table": f"tables/{VS_RANDOM_TABLE_NAME}.csv",
+            "arm_counts_table": f"tables/{ARM_COUNTS_TABLE_NAME}.csv",
             "calibration": json_records(calibration),
             "suppressed_group": json_records(suppressed),
             "profiles": json_records(profile_table),

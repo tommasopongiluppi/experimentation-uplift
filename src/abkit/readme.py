@@ -38,12 +38,21 @@ POLICY_NAMES: dict[str, str] = {
     "uplift": "Uplift policy (X-learner)",
     "response_model": "Response model",
     "recency_rule": "Recency rule",
-    "random": "Random targeting (one draw)",
+    "random": "Random customers, A/B winner (one draw; plan baseline 2)",
+    "random_any_email": "Random customers, random email (one draw; plan baseline 1)",
 }
-POLICY_PROSE: dict[str, str] = {
-    "response_model": "the response model",
-    "recency_rule": "the recency rule",
-    "random": "random targeting",
+RANKING_LABELS: dict[str, str] = {
+    "recency_rule": "recency rule",
+    "response_model": "response model",
+    "uplift": "uplift model",
+}
+ARM_COUNT_GROUPS: dict[str, str] = {
+    "uplift": "Uplift policy, targeted",
+    "response_model": "Response model, targeted",
+    "uplift_mens_default": "Mens-by-default policy (exploratory), targeted",
+    "do_not_email": "Do-not-email list",
+    "recency_rule": "Recency rule, targeted (no model)",
+    "random": "Random draw (no model)",
 }
 RANKINGS: tuple[str, ...] = ("uplift", "response_model", "recency_rule")
 RANKING_PROSE: dict[str, str] = {
@@ -102,11 +111,6 @@ def pct(x: float, decimals: int = 1, signed: bool = False) -> str:
 def num(x: float, decimals: int = 0) -> str:
     """Format a number with thousands separators."""
     return f"{x:,.{decimals}f}"
-
-
-def num_range(low: float, high: float, decimals: int = 0) -> str:
-    """Format an interval of plain numbers as ``low to high``."""
-    return f"{num(low, decimals)} to {num(high, decimals)}"
 
 
 def fixed(x: float, decimals: int = 3) -> str:
@@ -232,132 +236,42 @@ def _separated_rankings(results: Results) -> list[tuple[str, str, str]]:
     ]
 
 
-def _signed_range(d: Row) -> str:
-    return f"{d['diff']:+,.0f} ({num_range(d['ci_low'], d['ci_high'])})"
-
-
-def _versus_random(results: Results, outcome: str) -> tuple[dict[str, Row], str]:
-    """Each ranking's paired difference against the random draw, and which exclude zero."""
-    diffs = {name: _paired(results, name, "random", outcome) for name in RANKINGS}
-    apart = [RANKING_PROSE[name] for name, d in diffs.items() if d["meaningful"]]
-    if not apart:
-        verdict = "none excludes zero"
-    elif len(apart) == len(diffs):
-        verdict = f"all {len(apart)} exclude zero"
-    else:
-        verdict = f"only {join_words(apart)} exclude{'s' if len(apart) == 1 else ''} zero"
-    return diffs, verdict
-
-
-def _expected_random(results: Results, outcome: str) -> tuple[float, float, float]:
-    """Return random targeting's expected increment: budget times the winner's average effect."""
-    winner, _ = _winner(results)
-    budget = results["policy"]["budget"]
-    ate = _freq(results, outcome, f"{winner}_vs_control")
-    return budget * ate["diff"], budget * ate["ci_low"], budget * ate["ci_high"]
-
-
-def _gains_over_random(results: Results) -> tuple[list[str], list[str]]:
-    """Outcomes on which every ranking beats the random draw, and on which none does."""
-    every, none = [], []
-    for outcome in POLICY_OUTCOMES:
-        diffs, _ = _versus_random(results, outcome)
-        ahead = [d["meaningful"] and d["diff"] > 0 for d in diffs.values()]
-        if all(ahead):
-            every.append(outcome)
-        elif not any(ahead):
-            none.append(outcome)
-    return every, none
-
-
-def _or_words(items: Iterable[str]) -> str:
-    return join_words(items).replace(" and ", " or ")
-
-
-def _targeting_reason(results: Results) -> str:
-    """Write the recommendation under a budget and the reasoning behind it."""
-    budget = num(results["policy"]["budget"])
-    if _separated_rankings(results):
-        return (
-            f"If only {budget} emails can be sent, the rankings are not all tied: see "
-            "[Who to email](#5-who-to-email) for the one that is ahead."
-        )
-    every, none = _gains_over_random(results)
-    tied = (
-        f"If only {budget} emails can be sent, send them to the {budget} most recent "
-        "purchasers. The three rankings tested (response model, recency rule, uplift model) "
-        "are not separated from each other; "
+def _signed_range(d: Row, fmt: Callable[[float], str] = num) -> str:
+    """Format a paired difference with its interval; a star marks one that excludes zero."""
+    sign = "+" if d["diff"] > 0 else ("-" if d["diff"] < 0 else "")
+    star = "*" if d["meaningful"] else ""
+    return (
+        f"{sign}{fmt(abs(d['diff']))}{star} "
+        f"({_signed(d['ci_low'], fmt)} to {_signed(d['ci_high'], fmt)})"
     )
-    if len(every) + len(none) < len(POLICY_OUTCOMES):
-        evidence = (
-            "against random targeting the picture differs by ranking (see "
-            "[Who to email](#5-who-to-email))."
-        )
-    elif every and none:
-        gains = join_words(OUTCOME_PLURALS[o] for o in every)
-        evidence = (
-            f"all three bring more {gains} than random targeting, but none is shown to bring "
-            f"more {_or_words(OUTCOME_PLURALS[o] for o in none)}, so the case for targeting "
-            f"rests on {gains}."
-        )
-    elif every:
-        evidence = "all three beat random targeting on visits, conversions and spend."
-    else:
-        evidence = (
-            "none is shown to beat random targeting on visits, conversions or spend, so "
-            "these data give no case for targeting."
-        )
-    return f"{tied}{evidence} The recency rule needs no model."
 
 
-def _targeting_bullet(results: Results) -> str:
-    """Two sentences: how the rankings compare with each other and with random targeting."""
-    budget = num(results["policy"]["budget"])
-    lead = f"- **Targeting {budget} customers.** "
-    if _separated_rankings(results):
-        return lead + "The rankings are not all tied; see [Who to email](#5-who-to-email)."
-    every, none = _gains_over_random(results)
-    first = (
-        "The response model, the recency rule and the uplift model are not separated from "
-        "each other on visits, conversions or spend."
-    )
-    if every and len(every) + len(none) == len(POLICY_OUTCOMES):
-        outcome = every[0]
-        d = _paired(results, "recency_rule", "random", outcome)
-        fmt = (lambda x: usd(x, 0)) if outcome == "spend" else num
-        tail = (
-            f", but none is shown to bring more {_or_words(OUTCOME_PLURALS[o] for o in none)}."
-            if none
-            else "."
-        )
-        second = (
-            f"Against random targeting all three bring more "
-            f"{join_words(OUTCOME_PLURALS[o] for o in every)} (the recency rule "
-            f"{'+' if d['diff'] > 0 else ''}{fmt(d['diff'])} {OUTCOME_PLURALS[outcome]}, "
-            f"{fmt(d['ci_low'])} to {fmt(d['ci_high'])}){tail}"
-        )
-    elif not every and len(none) == len(POLICY_OUTCOMES):
-        second = "None is shown to beat random targeting on visits, conversions or spend."
-    else:
-        second = "Against random targeting the picture differs by ranking and outcome."
-    return f"{lead}{first} {second}"
+def _signed(x: float, fmt: Callable[[float], str]) -> str:
+    return f"-{fmt(abs(x))}" if x < 0 else fmt(x)
+
+
+def _vs_expected(results: Results, policy: str, outcome: str) -> Row:
+    """Row of the comparison with the exact expectation of random targeting."""
+    return find(results["policy"]["versus_random_expected"], policy=policy, outcome=outcome)
 
 
 def _adjustment_note(results: Results, rows: list[Row]) -> str:
     """Say what the adjusted p-value of each headline row is adjusted for."""
     families = results["frequentist"]["families"]
-    by_family: dict[str, list[int]] = {}
-    for i, row in enumerate(rows, 1):
-        by_family.setdefault(row["family"], []).append(i)
     parts = []
-    for family, numbers in by_family.items():
+    for family in dict.fromkeys(row["family"] for row in rows):
         spec = families[family]
         parts.append(
-            f"{'rows' if len(numbers) > 1 else 'row'} {join_words(str(n) for n in numbers)}, "
-            f"{ADJUSTMENT_NAMES[spec['adjustment']]} across the {spec['n_tests']} tests of the "
-            f"{family} family ({FAMILY_PROSE[family]})"
+            f"{ADJUSTMENT_NAMES[spec['adjustment']]} is the correction across the "
+            f"{spec['n_tests']} {family} tests ({FAMILY_PROSE[family]})"
         )
-    return f"Adjusted p: {'; '.join(parts)}. Intervals are unadjusted."
+    return f"{'; '.join(parts)}. Intervals are unadjusted."
+
+
+def _adjustment_label(results: Results, row: Row) -> str:
+    """Name the correction behind a row's adjusted p-value, e.g. ``Holm, 2 primary tests``."""
+    spec = results["frequentist"]["families"][row["family"]]
+    return f"{ADJUSTMENT_NAMES[spec['adjustment']]}, {spec['n_tests']} {row['family']} tests"
 
 
 def summary(results: Results) -> str:
@@ -382,7 +296,12 @@ def summary(results: Results) -> str:
     )
     headline_rows = [*spend.values(), head, visit]
     rows = [
-        [f"{_versus(r)}: spend per customer", *_effect(r), p_value(r["p_adj"])]
+        [
+            f"{_versus(r)}: spend per customer",
+            *_effect(r),
+            p_value(r["p_adj"]),
+            _adjustment_label(results, r),
+        ]
         for r in headline_rows[:3]
     ]
     rows.append(
@@ -391,20 +310,25 @@ def summary(results: Results) -> str:
             f"{pct(visit['mean_treatment'])})",
             *_effect(visit),
             p_value(visit["p_adj"]),
+            _adjustment_label(results, visit),
         ]
     )
     everyone = _policy(results, f"all_{winner}", "spend")
     thousands = [round(everyone[k], -3) for k in ("incremental_total", "ci_low", "ci_high")]
-
-    suppressed = find(policy["suppressed_group"], outcome="visit")
-    no_group = suppressed["ci_low"] > 0
     return "\n".join(
         [
             f"**Decision: send the {name} email, to everyone who can be emailed.** {lead} "
-            f"{_targeting_reason(results)}",
+            "This assumes an email costs nothing: the data hold no cost, margin or "
+            "unsubscribe figures.",
             "",
             table(
-                ["Headline (two-week window)", "Estimate", "95% interval", "Adjusted p"],
+                [
+                    "Headline (two-week window)",
+                    "Estimate",
+                    "95% interval",
+                    "Adjusted p",
+                    "Correction",
+                ],
                 rows,
             ),
             "",
@@ -414,20 +338,46 @@ def summary(results: Results) -> str:
             f"brings about {usd(thousands[0], 0)} of extra revenue in two weeks "
             f"({usd_range(thousands[1], thousands[2], 0)}). Profit cannot be computed: the "
             "data hold no cost or margin.",
-            _targeting_bullet(results),
-            "- **Whom not to email.** "
-            + (
-                f"Nobody identified. The {num(suppressed['n_suppressed'])} customers the model "
-                f"ranks lowest still visit more when emailed: "
-                f"{pp(suppressed['uplift_per_customer'], signed=True)} "
-                f"({pp_range(suppressed['ci_low'], suppressed['ci_high'])})."
-                if no_group
-                else f"The {num(suppressed['n_suppressed'])} customers the model ranks lowest "
-                f"show no clear gain from an email: "
-                f"{pp(suppressed['uplift_per_customer'], signed=True)} "
-                f"({pp_range(suppressed['ci_low'], suppressed['ci_high'])})."
-            ),
+            "- **Targeting under a budget, and whom not to email: under revision.** The "
+            "targeting results were corrected after an independent review (analysis plan D11 "
+            "to D13). The corrected numbers and the decision rule applied to them are in "
+            "[Who to email](#5-who-to-email); this summary will be rewritten from them.",
         ]
+    )
+
+
+def _recommendation_text(results: Results) -> str:
+    """State what the decision rule of analysis plan D10 gives on the current results."""
+    pol = results["policy"]
+    budget = num(pol["budget"])
+    winner, _ = _winner(results)
+    rec = pol["recommendation"]
+    qualifying = rec["qualifying"]
+    if rec["recommended"] is None:
+        return (
+            f"By the decision rule (analysis plan D10), no ranking is recommended: none of "
+            f"the recency rule, the response model and the uplift model has a paired "
+            f"difference against random targeting that excludes zero on spend or on visits. "
+            f"Targeting is not shown to add value at this budget; any of the rankings, or a "
+            f"random {budget} customers given the {EMAIL_NAMES[winner]} email, is defensible."
+        )
+    qualifiers = join_words(
+        f"the {RANKING_LABELS[r]} (on {join_words(OUTCOME_PLURALS[o] for o in outcomes)})"
+        for r, outcomes in qualifying.items()
+    )
+    chosen = RANKING_LABELS[rec["recommended"]]
+    simplest = next(iter(qualifying))
+    reason = (
+        "it is the only ranking that qualifies"
+        if len(qualifying) == 1
+        else "it is the simplest ranking that qualifies"
+        if rec["recommended"] == simplest
+        else "it qualifies and is separated from the simpler rankings that qualify"
+    )
+    return (
+        f"By the decision rule (analysis plan D10), use the {chosen}: {reason}. A ranking "
+        "qualifies when its paired difference against random targeting excludes zero on "
+        f"spend or on visits; here that holds for {qualifiers}."
     )
 
 
@@ -468,20 +418,7 @@ def questions(results: Results) -> str:
     control_mean = _freq(results, "spend", "mens_vs_control")["mean_control"]
     q2 = f"{'; '.join(parts)}, on a no-email baseline of {usd(control_mean)} per customer."
 
-    uplift = _policy(results, "uplift", "visit")
-    best = max(RANKINGS, key=lambda r: _policy(results, r, "visit")["incremental_total"])
-    q3 = (
-        f"The uplift policy (each customer's better email, top {budget} by predicted uplift) "
-        f"brings {num(uplift['incremental_total'])} extra visits "
-        f"({num_range(uplift['ci_low'], uplift['ci_high'])}). "
-        + (
-            f"No ranking is separated from the others ({RANKING_PROSE[best]} has the highest "
-            f"point estimate), so use the simplest one: the {name} email to the {budget} most "
-            "recent purchasers."
-            if not _separated_rankings(results)
-            else "The rankings are not all tied; see [Who to email](#5-who-to-email)."
-        )
-    )
+    q3 = _recommendation_text(results)
 
     sup = find(policy["suppressed_group"], outcome="visit")
     q4 = (
@@ -623,8 +560,10 @@ def readout(results: Results) -> str:
             + f" The pre-registered rule (ship if P(better) is at least "
             f"{rule['p_better_threshold']} and the expected loss is below "
             f"{pct(rule['loss_fraction_of_control_mean'], 0)} of the control mean) recommends "
-            f"the {EMAIL_NAMES[recommendation['recommended_email']]} email. The frequentist "
-            "and Bayesian readouts agree, as expected with arms this large and a flat prior.",
+            f"the {EMAIL_NAMES[recommendation['recommended_email']]} email. The Bayesian "
+            "bootstrap puts a uniform Dirichlet prior on the weights of the observed spend "
+            "values and no prior on their size, so with arms this large it is expected to "
+            "agree with the frequentist readout, and it does.",
         ]
     )
 
@@ -635,9 +574,22 @@ def cuped(results: Results) -> str:
     spend, visit = by_metric["spend"], by_metric["visit"]
     row = find(results["cuped"]["rows"], metric="spend", comparison="mens_vs_control")
     mde = {
-        flag: find(results["power"]["mde_rows"], metric="spend", alpha_label="holm", cuped=flag)
+        (email, flag): find(
+            results["power"]["mde_per_arm_rows"],
+            metric="spend",
+            treatment=email,
+            alpha_label="holm",
+            cuped=flag,
+        )
+        for email in ("mens", "womens")
         for flag in (False, True)
     }
+    mde_text = join_words(
+        f"{usd(mde[email, False]['mde_absolute'])} for {EMAIL_NAMES[email]} "
+        f"({usd(mde[email, True]['mde_absolute'])} with CUPED; observed "
+        f"{usd(mde[email, False]['observed_diff'])})"
+        for email in ("mens", "womens")
+    )
     zero = results["eda"]["pooled_rates"]["share_zero_spend"]
     n_covariates = len(results["cuped"]["lin_covariates"])
     return "\n".join(
@@ -668,10 +620,13 @@ def cuped(results: Results) -> str:
             "",
             f"- For spend, the standard error of the Mens effect goes from "
             f"{usd(row['raw_se'], 5)} to {usd(row['cuped_se'], 5)} with CUPED and to "
-            f"{usd(row['lin_se'], 5)} with the regression, and the minimum detectable effect "
-            f"stays at {usd(mde[False]['mde_absolute'], 4)} ({usd(mde[True]['mde_absolute'], 4)} "
-            "with CUPED). A negative value in the table means the adjustment added a little "
-            "noise.",
+            f"{usd(row['lin_se'], 5)} with the regression. A negative value in the table "
+            "means the adjustment added a little noise.",
+            f"- **Minimum detectable effect.** With each arm's own variance, at the Holm "
+            f"level and {pct(mde['mens', False]['power'], 0)} power, the smallest spend effect "
+            f"the experiment could detect is {mde_text}. CUPED does not move it. The emails "
+            "raise the variance of spend in their own arm, so these are larger than a "
+            "planning figure based on the control variance alone.",
             f"- **Why.** {pct(zero)} of customers spend nothing in the two weeks, so spend is "
             "almost entirely a rare, noisy purchase event that last year's spend cannot "
             f"predict (correlation at most {spend['rho_max']:.3f}). Visits are more "
@@ -683,7 +638,7 @@ def cuped(results: Results) -> str:
     )
 
 
-def peeking(results: Results) -> str:
+def peeking(results: Results, reports_dir: Path) -> str:
     """Tabulate the false positive rate and power of each stopping rule under daily looks."""
     seq = results["sequential"]
     looks = seq["days"]
@@ -702,12 +657,17 @@ def peeking(results: Results) -> str:
             raise LookupError(f"{len(matches)} sequential rows for {scenario}/{method}")
         return matches[0]
 
+    looks_table = pd.read_csv(reports_dir / seq["looks_table"])
+    single = looks_table[(looks_table["metric"] == "visit") & (looks_table["n_looks"] == 1)]
+    single = single.set_index("method")
     rows = []
     for method, label in SEQUENTIAL_NAMES.items():
         aa, ab = row("aa", method), row("ab_mde", method)
+        one = single.loc[method]
         rows.append(
             [
                 label,
+                f"{pct(one['reject_rate'])} (±{pct(one['reject_mcse'])})",
                 f"{pct(aa['reject_rate'])} (±{pct(aa['reject_mcse'])})",
                 f"{pct(ab['reject_rate'])} (±{pct(ab['reject_mcse'])})",
                 f"{ab['mean_stop_day']:.1f}",
@@ -727,13 +687,19 @@ def peeking(results: Results) -> str:
             "",
             table(
                 [
-                    f"Rule, {looks} daily looks",
-                    "False positive rate, no true effect (± Monte Carlo SE)",
+                    "Rule",
+                    "False positive rate with a single look (± Monte Carlo SE)",
+                    f"False positive rate with {looks} daily looks",
                     f"Power at a {pct(mde['relative'])} relative lift",
                     "Mean stopping day at that lift",
                 ],
                 rows,
             ),
+            "",
+            "Compare each rule with its own single-look rate. The Bayesian rule is two-sided "
+            "at 10% by construction, so it starts from about twice the rate of the 5% test; "
+            "peeking multiplies both. The single-look column uses "
+            f"{num(int(single['n_runs'].iloc[0]))} runs.",
             "",
             f"The group-sequential boundaries are calibrated by simulation; for five looks "
             f"they come out at {k5['pocock']:.3f} (Pocock) and {k5['obf']:.3f} "
@@ -855,98 +821,106 @@ def uplift_models(results: Results) -> str:
             f"(range {x['min']:.3f} to {x['max']:.3f}) and is above the response model in "
             f"{beats['count']} of {beats['out_of']} seeds."
         )
+        seeds = []
+        for ranking, label in (("uplift", "uplift policy"), ("response_model", "response model")):
+            matches = [
+                s
+                for s in robustness["spread"]
+                if s["ranking"] == ranking and s["metric"].endswith("policy_incremental_visits")
+            ]
+            if matches:
+                s = matches[0]
+                seeds.append(
+                    f"{label} {num(s['seed_0'])} in the committed seed, median "
+                    f"{num(s['median'])}, range {num(s['min'])} to {num(s['max'])}"
+                )
+        if seeds:
+            lines.append(
+                f"- **Policy value across fold seeds.** Incremental visits at the "
+                f"{num(robustness['budget'])} budget over the same {robustness['n_seeds']} "
+                f"seeds: {'; '.join(seeds)}. The bootstrap intervals hold the folds fixed, so "
+                "this spread comes on top of them; read the median as the central value."
+            )
     lines.append(
-        "- **The choice of the X-learner is post hoc (deviation D8).** It was picked for the "
-        "policy after these results were seen, from three learners evaluated on the same "
-        "data, so its coefficient is the largest of several noisy estimates and is optimistic. "
-        'Read "best" as "chosen", not as "shown to be better".'
+        "- **The choice of the X-learner for the policy is post hoc (deviation D8).** It was "
+        "picked from three learners after an earlier evaluation on the same data, which the "
+        "correction of deviation D11 has since replaced; the choice was not revisited, so "
+        "that the policy is not selected a second time on the corrected results. Read "
+        '"chosen", not "shown to be better": '
+        + (
+            "in the table above it is the top-ranked learner on the Womens pair"
+            if models["summary"]["womens_visit"]["best_ranking"] == "x_learner"
+            else "in the table above it is not the top-ranked learner on the Womens pair"
+        )
+        + ", and it is not separated from the other learners that rank near it."
     )
     return "\n".join(lines)
 
 
+def _money(x: float) -> str:
+    return usd(x, 0)
+
+
+OUTCOME_FORMATS: dict[str, Callable[[float], str]] = {
+    "visit": num,
+    "conversion": num,
+    "spend": _money,
+}
+
+
+def _value_cell(row: Row, fmt: Callable[[float], str]) -> str:
+    return (
+        f"{_signed(row['incremental_total'], fmt)} "
+        f"({_signed(row['ci_low'], fmt)} to {_signed(row['ci_high'], fmt)})"
+    )
+
+
 def policy(results: Results, reports_dir: Path) -> str:
-    """Tabulate the fixed-budget policies, the budget curve and the do-not-email check."""
+    """Tabulate the fixed-budget policies, their comparison with random targeting and the rule."""
     pol = results["policy"]
     budget = pol["budget"]
     winner, _ = _winner(results)
-    rows_by_policy = {
-        name: find(pol["rows"], policy=name, outcome="visit") for name in POLICY_NAMES
-    }
-    table_rows = []
+    value_rows, versus_rows = [], []
     for name, label in POLICY_NAMES.items():
-        visit, spend = _policy(results, name, "visit"), _policy(results, name, "spend")
-        counts = rows_by_policy[name]
-        if name == "uplift":
-            versus = "reference"
-        else:
-            d = pol["uplift_versus"]["visit"][name]
-            versus = f"{d['diff_incremental_total']:+,.0f} ({num_range(d['ci_low'], d['ci_high'])})"
-        table_rows.append(
+        counts = find(pol["rows"], policy=name, outcome="visit")
+        value_rows.append(
             [
                 label,
                 f"{num(counts['n_mens'])} / {num(counts['n_womens'])}",
-                f"{num(visit['incremental_total'])} "
-                f"({num_range(visit['ci_low'], visit['ci_high'])})",
-                f"{usd(spend['incremental_total'], 0)} "
-                f"({usd_range(spend['ci_low'], spend['ci_high'], 0)})",
-                versus,
+                *(
+                    _value_cell(_policy(results, name, o), OUTCOME_FORMATS[o])
+                    for o in POLICY_OUTCOMES
+                ),
             ]
         )
-
-    def separated(name: str) -> list[str]:
-        return [
-            outcome
-            for outcome in ("visit", "conversion", "spend")
-            if pol["uplift_versus"][outcome][name]["meaningful"]
-        ]
-
-    verdicts = []
-    for name in ("response_model", "recency_rule"):
-        outcomes = separated(name)
-        verdicts.append(
-            f"**The uplift policy is not separated from {POLICY_PROSE[name]}** on visits, "
-            "conversions or spend: every paired bootstrap interval includes zero."
-            if not outcomes
-            else f"The uplift policy is separated from {POLICY_PROSE[name]} on "
-            f"{join_words(OUTCOME_PLURALS[o] for o in outcomes)}."
+        versus_rows.append(
+            [
+                label,
+                *(
+                    _signed_range(_vs_expected(results, name, o), OUTCOME_FORMATS[o])
+                    for o in POLICY_OUTCOMES
+                ),
+            ]
         )
-    if not _separated_rankings(results):
-        best = max(RANKINGS, key=lambda r: _policy(results, r, "visit")["incremental_total"])
-        lead = _paired(results, best, "recency_rule", "visit")
-        verdicts.append(
-            "The recency rule and the response model are not separated from each other "
-            f"either. {RANKING_PROSE[best].capitalize()} has the highest point estimate on "
-            "visits"
-            + (
-                ""
-                if best == "recency_rule"
-                else f", but its lead over the recency rule, {num(lead['diff'])} visits "
-                f"({num_range(lead['ci_low'], lead['ci_high'])}), includes zero"
-            )
-            + ". With no ranking separated from another the recommendation is the simplest "
-            "one, the recency rule. The analysis plan pre-registered no rule for this choice."
-        )
-    visit_diffs, _ = _versus_random(results, "visit")
-    conversion_diffs, _ = _versus_random(results, "conversion")
-    random_verdicts = join_words(
-        f"{_versus_random(results, outcome)[1]} on {OUTCOME_PLURALS[outcome]}"
-        for outcome in POLICY_OUTCOMES
+    expected = {o: _vs_expected(results, "recency_rule", o) for o in POLICY_OUTCOMES}
+
+    pairs = [(a, b) for i, a in enumerate(RANKINGS) for b in RANKINGS[i + 1 :]]
+    separated = _separated_rankings(results)
+    pair_text = join_words(
+        f"{RANKING_PROSE[a]} minus {RANKING_PROSE[b]} "
+        f"{_signed_range(_paired(results, a, b, 'visit'))}"
+        for a, b in pairs
     )
-    random_line = (
-        "**Against random targeting** (the pre-registered draw), the paired differences in "
-        "visits are "
-        + join_words(f"{_signed_range(visit_diffs[r])} for {RANKING_PROSE[r]}" for r in RANKINGS)
-        + ", and in conversions "
+    between = (
+        "**No ranking is separated from another** on visits, conversions or spend. In "
+        f"visits: {pair_text}."
+        if not separated
+        else "**Between rankings**, the paired differences that exclude zero are "
         + join_words(
-            f"{_signed_range(conversion_diffs[r])} for {RANKING_PROSE[r]}" for r in RANKINGS
+            f"{RANKING_PROSE[a]} against {RANKING_PROSE[b]} on {OUTCOME_PLURALS[o]}"
+            for a, b, o in separated
         )
-        + f": {random_verdicts}. So the case for targeting at all rests on "
-        "conversions, an outcome the models were not trained on."
-        if _gains_over_random(results) == (["conversion"], ["visit", "spend"])
-        else "**Against random targeting** (the pre-registered draw), the paired differences "
-        "in visits are "
-        + join_words(f"{_signed_range(visit_diffs[r])} for {RANKING_PROSE[r]}" for r in RANKINGS)
-        + f": {random_verdicts}."
+        + f". In visits: {pair_text}."
     )
 
     curve = pd.read_csv(reports_dir / pol["budget_curve_table"])
@@ -956,41 +930,70 @@ def policy(results: Results, reports_dir: Path) -> str:
         wide = grid.pivot_table(index="n_emailed", columns="policy", values=column)
         counts[column] = int((wide["recency_rule"] >= wide["uplift"]).sum()), len(wide)
     step = int(curve["n_emailed"].drop_duplicates().sort_values().iloc[1])
-    at_budget = {
-        name: _policy(results, name, "visit")["incremental_total"]
-        for name in ("recency_rule", "uplift")
-    }
-    order = "above" if at_budget["recency_rule"] >= at_budget["uplift"] else "below"
     sup = {o: find(pol["suppressed_group"], outcome=o) for o in ("visit", "spend")}
     no_group = sup["visit"]["ci_low"] > 0
+
+    arm_rows = []
+    by_group = {r["group"]: r for r in pol["arm_counts"]}
+    for group, label in ARM_COUNT_GROUPS.items():
+        r = by_group[group]
+        arm_rows.append(
+            [
+                label,
+                num(r["n_mens"]),
+                num(r["n_womens"]),
+                num(r["n_control"]),
+                f"{num(r['expected_mens'])} / {num(r['expected_womens'])} / "
+                f"{num(r['expected_control'])}",
+                f"{r['p_value']:.2f}" if r["p_value"] >= 0.005 else p_value(r["p_value"]),
+                "yes" if r["passed"] else "**no**",
+            ]
+        )
+    all_pass = all(r["passed"] for r in pol["arm_counts"])
     return "\n".join(
         [
             table(
                 [
                     f"Policy, {num(budget)} emails",
                     "Mens / Womens emails",
-                    "Incremental visits (95% interval)",
-                    "Incremental spend (95% interval)",
-                    "Uplift policy minus this policy, visits",
+                    "Incremental visits",
+                    "Incremental conversions",
+                    "Incremental spend",
                 ],
-                table_rows,
+                value_rows,
             ),
             "",
-            "Values are increments over emailing nobody, estimated by inverse propensity "
-            f"weighting with the design probability, with a paired bootstrap "
-            f"({num(pol['bootstrap']['n_resamples'])} resamples). The recency rule and random "
-            f"targeting send the A/B winner ({EMAIL_NAMES[winner]}).",
+            "Increments over emailing nobody with 95% intervals, estimated by inverse "
+            f"propensity weighting with the design probability and a paired bootstrap "
+            f"({num(pol['bootstrap']['n_resamples'])} resamples). The recency rule sends the "
+            f"A/B winner ({EMAIL_NAMES[winner]}).",
             "",
-            f"- {' '.join(verdicts)}",
-            f"- {random_line}",
+            "**Against random targeting.** Random targeting of the same number of customers "
+            f"with the {EMAIL_NAMES[winner]} email has a known expectation, the number of "
+            f"emails times the average effect: {num(expected['visit']['expected_random'])} "
+            f"visits, {num(expected['conversion']['expected_random'])} conversions and "
+            f"{usd(expected['spend']['expected_random'], 0)} of spend. The table gives each "
+            "policy minus that expectation, with both recomputed on the same bootstrap "
+            "resamples; a star marks an interval that excludes zero.",
+            "",
+            table(
+                [
+                    "Policy minus the random expectation",
+                    "Visits",
+                    "Conversions",
+                    "Spend",
+                ],
+                versus_rows,
+            ),
+            "",
+            f"- **Decision rule.** {_recommendation_text(results)} The rule was written after "
+            "the uncorrected results had been seen and before these numbers were computed.",
+            f"- {between}",
             f"- **Budget curve.** Extending each ranking to every budget in steps of "
             f"{num(step)}, the recency rule is at or above the uplift policy at "
             f"{counts['incremental_visits'][0]} of {counts['incremental_visits'][1]} budgets on "
             f"visits and at {counts['incremental_spend'][0]} of "
-            f"{counts['incremental_spend'][1]} on spend. At the budget of {num(budget)} it is "
-            f"{order} the uplift policy on visits ({num(at_budget['recency_rule'])} against "
-            f"{num(at_budget['uplift'])}). These are point estimates; the curves cross "
-            "repeatedly and no ranking leads throughout.",
+            f"{counts['incremental_spend'][1]} on spend. These are point estimates.",
             f"- **Do-not-email list.** The {num(sup['visit']['n_suppressed'])} customers with "
             "the lowest predicted uplift, given their better email, gain "
             f"{pp(sup['visit']['uplift_per_customer'], signed=True)} in visit rate "
@@ -1002,48 +1005,80 @@ def policy(results: Results, reports_dir: Path) -> str:
                 if no_group
                 else "The interval for visits includes zero."
             ),
+            "",
+            "**Does the selection depend on the arm?** A policy built from pre-treatment "
+            "variables and out-of-fold scores must pick customers from the three arms in the "
+            "proportions of the whole population; if it does not, its value above is biased. "
+            "Counts of the selected customers by the arm they were randomised to:",
+            "",
+            table(
+                [
+                    "Selected group",
+                    "Mens arm",
+                    "Womens arm",
+                    "Control",
+                    "Expected (Mens / Womens / Control)",
+                    "p",
+                    "Passes",
+                ],
+                arm_rows,
+            ),
+            "",
+            (
+                "Every group passes the sample-ratio test"
+                if all_pass
+                else "Not every group passes the sample-ratio test"
+            )
+            + f" (alarm threshold {pol['arm_counts'][0]['alpha']}). An earlier version of the "
+            "scoring failed it; that error and its correction are deviation D11.",
         ]
     )
 
 
 def random_targeting(results: Results) -> str:
-    """Put the pre-registered random draw next to its expectation, budget times ATE."""
+    """Put the random draws next to the exact expectation, for every outcome."""
     pol = results["policy"]
     budget = pol["budget"]
     winner, _ = _winner(results)
-    rows = []
-    formats: dict[str, Callable[[float], str]] = {
-        "visit": lambda x: num(x),
-        "spend": lambda x: usd(x, 0),
+    labels = {
+        "visit": "Incremental visits",
+        "conversion": "Incremental conversions",
+        "spend": "Incremental spend",
     }
-    for outcome, label in (("visit", "Incremental visits"), ("spend", "Incremental spend")):
-        fmt = formats[outcome]
-        draw = _policy(results, "random", outcome)
-        ate = _freq(results, outcome, f"{winner}_vs_control")
+    rows = []
+    for outcome, label in labels.items():
+        fmt = OUTCOME_FORMATS[outcome]
+        row = _vs_expected(results, "random", outcome)
         rows.append(
             [
                 label,
-                f"{fmt(draw['incremental_total'])} "
-                f"({fmt(draw['ci_low'])} to {fmt(draw['ci_high'])})",
-                f"{fmt(budget * ate['diff'])} "
-                f"({fmt(budget * ate['ci_low'])} to {fmt(budget * ate['ci_high'])})",
+                f"{fmt(row['expected_random'])} "
+                f"({_signed(row['expected_ci_low'], fmt)} to "
+                f"{_signed(row['expected_ci_high'], fmt)})",
+                _value_cell(_policy(results, "random", outcome), fmt),
+                _signed_range(row, fmt),
+                _value_cell(_policy(results, "random_any_email", outcome), fmt),
             ]
         )
     return "\n".join(
         [
             table(
                 [
-                    f"Random targeting, {num(budget)} {EMAIL_NAMES[winner]} emails",
-                    "Pre-registered draw (bootstrap interval)",
-                    "Exact expectation, budget times average effect (interval from the effect's)",
+                    f"{num(budget)} random customers",
+                    f"Exact expectation, {EMAIL_NAMES[winner]} email",
+                    f"One draw, {EMAIL_NAMES[winner]} email (baseline 2)",
+                    "That draw minus the expectation",
+                    "Same draw, random email (baseline 1)",
                 ],
                 rows,
             ),
             "",
-            "The draw is one random set of customers (analysis plan §11, deviation D9) and is "
-            "what enters the paired comparisons above. The expectation needs no draw. The two "
-            "differ by sampling noise, and the draw's interval is wider because it rests on "
-            "the customers who happened to be drawn.",
+            "The expectation is the budget times the average effect and needs no draw; its "
+            "interval comes from the bootstrap of that effect. The draw is one random set of "
+            "customers (analysis plan §11, deviations D9 and D13). Its difference from the "
+            "expectation is the luck of that one draw; a star marks an outcome on which the "
+            "drawn customers landed measurably off. That is why the rankings are compared "
+            "with the expectation and not with the draw (deviation D12).",
         ]
     )
 
@@ -1094,9 +1129,18 @@ def verification(results: Results) -> str:
         ),
         (
             "Leakage guard",
-            "The feature builder refuses any outcome or arm column, and every score is out of "
-            "fold.",
+            "The feature builder refuses any outcome or arm column by name, and before any "
+            "fit a feature whose values copy or recode the outcome or the treatment is "
+            "rejected; every score is out of fold. A noisy function of an outcome cannot be "
+            "detected from values.",
             "Results inflated by information from the outcome.",
+        ),
+        (
+            "Selection independent of the arm",
+            "On pure-noise features a rule that picks the highest scores selects customers "
+            "from the three arms in the design proportions, and the earlier fold-averaged "
+            "scoring fails the same sample-ratio test; the committed policies must pass it.",
+            "A policy that selects on the realised arm, which biases its estimated value.",
         ),
     ]
     return table(
@@ -1126,7 +1170,7 @@ def build_blocks(results: Results, reports_dir: Path) -> dict[str, str]:
         "validity": validity(results),
         "readout": readout(results),
         "cuped": cuped(results),
-        "peeking": peeking(results),
+        "peeking": peeking(results, reports_dir),
         "multiple_testing": multiple_testing(results),
         "uplift_models": uplift_models(results),
         "policy": policy(results, reports_dir),

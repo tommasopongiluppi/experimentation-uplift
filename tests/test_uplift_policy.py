@@ -13,9 +13,11 @@ from abkit.uplift.policy import (
     BUDGETED,
     EXPLORATORY,
     LABEL,
+    MODEL_BASED,
     POLICIES,
     PolicyInputs,
     ab_winner,
+    arm_counts_check,
     budget_curve,
     build_policies,
     calibration_check,
@@ -24,8 +26,10 @@ from abkit.uplift.policy import (
     mens_constant,
     policy_value,
     profiles,
+    recommend_ranking,
     run_policy,
     top_k,
+    versus_random_expectation,
 )
 
 ARMS = np.array(config.ARMS)
@@ -124,10 +128,15 @@ def test_every_policy_respects_the_budget(rng):
     counts = {name: email_counts(a) for name, a in assignments.items()}
     for name in BUDGETED:
         assert counts[name]["n_emailed"] <= budget, name
-    for name in ("random", "recency_rule", "response_model"):
+    for name in ("random_any_email", "random", "recency_rule", "response_model"):
         assert counts[name]["n_emailed"] == budget, name
-        assert counts[name]["n_womens" if name != "response_model" else "n_emailed"] >= 0
     assert counts["random"]["n_womens"] == 0 and counts["recency_rule"]["n_womens"] == 0
+    # Baseline 1 emails the same random customers as baseline 2, each with a random email.
+    np.testing.assert_array_equal(
+        assignments["random_any_email"] != "control", assignments["random"] != "control"
+    )
+    assert abs(counts["random_any_email"]["n_mens"] - budget / 2) < 4 * np.sqrt(budget / 4)
+    assert counts["random_any_email"]["n_mens"] + counts["random_any_email"]["n_womens"] == budget
     assert counts["nobody"]["n_emailed"] == 0
     assert counts["all_mens"] == {"n_emailed": n, "n_mens": n, "n_womens": 0}
     assert counts["all_womens"] == {"n_emailed": n, "n_mens": 0, "n_womens": n}
@@ -389,6 +398,9 @@ def test_ab_winner_rule(tmp_path):
         return path
 
     assert ab_winner(results(True, True))[0] == "mens"
+    # A significant but negative difference is harm, not a win.
+    assert ab_winner(results(True, True, diff_mens=-0.7))[0] == "womens"
+    assert ab_winner(results(True, False, diff_mens=-0.7))[0] == "womens"  # falls to the Bayes rule
     assert ab_winner(results(True, True, diff_mens=0.1))[0] == "womens"
     assert ab_winner(results(False, True))[0] == "womens"
     assert ab_winner(results(True, False))[0] == "mens"
@@ -451,3 +463,149 @@ def test_run_policy_writes_outputs(fixture_db, customers, tmp_path, rng):
     assert isinstance(section["uplift_beats_recency_rule"]["visit"], bool)
     assert len(section["calibration"]) == 2 and len(section["suppressed_group"]) == 3
     assert section["exploratory"] == list(EXPLORATORY)
+
+
+# --- comparison with the expectation of random targeting, decision rule, arm counts ----------
+
+
+def _planted(rng, n=60_000):
+    """Customers with a known effect: the mens email adds 0.10 to visits for x > 0.5 only."""
+    arm = rng.choice(ARMS, n)
+    x = rng.random(n)
+    p_visit = 0.10 + 0.10 * ((arm == "mens") & (x > 0.5)) + 0.02 * (arm == "womens")
+    visit = (rng.random(n) < p_visit).astype(float)
+    y = pd.DataFrame({"visit": visit, "conversion": 0.0 * visit, "spend": 20.0 * visit})
+    pre = pd.DataFrame(
+        {
+            "recency": rng.integers(1, 13, n),
+            "history": rng.gamma(2.0, 100.0, n),
+            "mens": 1,
+            "womens": 0,
+            "newbie": 0,
+            "zip_code": "urban",
+            "channel": "web",
+            "history_segment": "usd_0_100",
+        }
+    )
+    tau = pd.DataFrame({"mens": x, "womens": 0.0 * x})  # an oracle ranking for the mens email
+    inputs = PolicyInputs(np.arange(n), arm, y, tau, tau.copy(), pre)
+    return inputs, x
+
+
+def test_versus_random_expectation_recovers_the_planted_gain(rng):
+    inputs, x = _planted(rng)
+    budget = 12_000
+    assignments, _ = build_policies(inputs, "mens", rng, budget)
+    table = versus_random_expectation(inputs, assignments, "mens", rng, n_resamples=200)
+    assert set(table["policy"]) == set(BUDGETED)
+    visit = table[table["outcome"] == "visit"].set_index("policy")
+    # Random targeting with the mens email: budget x ATE = budget x 0.05.
+    assert visit.loc["uplift", "expected_random"] == pytest.approx(0.05 * budget, rel=0.15)
+    # The oracle ranking emails x > 0.8 only, where the effect is 0.10: twice the expectation.
+    assert (x[assignments["uplift"] == "mens"] > 0.79).all()
+    assert visit.loc["uplift", "diff"] == pytest.approx(0.05 * budget, rel=0.3)
+    assert visit.loc["uplift", "policy_better"] and visit.loc["uplift", "meaningful"]
+    # The random draw has the same expectation, so its difference is noise around zero.
+    assert not visit.loc["random", "meaningful"]
+    assert visit.loc["random", "ci_low"] < 0 < visit.loc["random", "ci_high"]
+    # Rows are internally consistent.
+    np.testing.assert_allclose(table["diff"], table["incremental_total"] - table["expected_random"])
+    assert (table["ci_low"] <= table["diff"]).all() and (table["diff"] <= table["ci_high"]).all()
+    spend = table[table["outcome"] == "spend"].set_index("policy")
+    np.testing.assert_allclose(spend["diff"], 20.0 * visit["diff"])
+
+
+def _rule_tables(better, pair_low):
+    """Comparison tables for the decision rule: who beats the expectation, who is separated."""
+    vs_random = pd.DataFrame(
+        [
+            {"policy": p, "outcome": o, "policy_better": (p, o) in better}
+            for p in ("recency_rule", "response_model", "uplift", "random")
+            for o in ("visit", "conversion", "spend")
+        ]
+    )
+    rows = []
+    for reference, other in (
+        ("uplift", "recency_rule"),
+        ("uplift", "response_model"),
+        ("recency_rule", "response_model"),
+    ):
+        for outcome in ("visit", "conversion", "spend"):
+            low = pair_low.get((reference, other, outcome), -1.0)
+            rows.append(
+                {
+                    "reference": reference,
+                    "policy": other,
+                    "outcome": outcome,
+                    "ci_low": low,
+                    "ci_high": low + 2.0 if low < 0 else low + 5.0,
+                }
+            )
+    return vs_random, pd.DataFrame(rows)
+
+
+def test_decision_rule_of_the_analysis_plan():
+    # Nothing beats the expectation on spend or visits: no recommendation, even though every
+    # ranking beats it on conversions (conversions are not a qualifying outcome).
+    conv = {(p, "conversion") for p in ("recency_rule", "response_model", "uplift")}
+    out = recommend_ranking(*_rule_tables(conv, {}))
+    assert out["recommended"] is None and out["qualifying"] == {}
+    # Only the response model qualifies.
+    out = recommend_ranking(*_rule_tables({("response_model", "visit")}, {}))
+    assert out["recommended"] == "response_model"
+    assert out["qualifying"] == {"response_model": ["visit"]}
+    # All qualify and none is separated: the simplest, the recency rule.
+    everyone = {(p, "visit") for p in ("recency_rule", "response_model", "uplift")}
+    assert recommend_ranking(*_rule_tables(everyone, {}))["recommended"] == "recency_rule"
+    # The uplift model is separated from the recency rule on spend: it replaces it.
+    out = recommend_ranking(*_rule_tables(everyone, {("uplift", "recency_rule", "spend"): 3.0}))
+    assert out["recommended"] == "uplift"
+    # A separation on conversions alone does not count.
+    sep = {("uplift", "recency_rule", "conversion"): 3.0}
+    assert recommend_ranking(*_rule_tables(everyone, sep))["recommended"] == "recency_rule"
+    # The response model is separated from the recency rule (stored as recency minus
+    # response, interval below zero): it replaces it; the uplift model does not qualify.
+    vs_random, comparison = _rule_tables(
+        {("recency_rule", "visit"), ("response_model", "visit")}, {}
+    )
+    row = (
+        (comparison["reference"] == "recency_rule")
+        & (comparison["policy"] == "response_model")
+        & (comparison["outcome"] == "visit")
+    )
+    comparison.loc[row, ["ci_low", "ci_high"]] = [-9.0, -2.0]
+    assert recommend_ranking(vs_random, comparison)["recommended"] == "response_model"
+
+
+def test_arm_counts_check_passes_for_fixed_policies_and_catches_arm_dependence(rng):
+    inputs = _inputs(rng, 30_000)
+    assignments, info = build_policies(inputs, "mens", rng, 5_000)
+    groups = {name: assignments[name] != "control" for name in MODEL_BASED}
+    groups["do_not_email"] = info["suppressed"]
+    table = arm_counts_check(inputs, groups)
+    # Scores drawn independently of the arm: every model-based policy and the do-not-email
+    # list are spread over the arms like the population.
+    assert table["passed"].all(), table[["group", "p_value"]]
+    assert (table[["n_mens", "n_womens", "n_control"]].sum(axis=1) == table["n"]).all()
+    np.testing.assert_allclose(
+        table[["expected_mens", "expected_womens", "expected_control"]].sum(axis=1), table["n"]
+    )
+    # A score that is less noisy in one arm (what fold-averaged scores were) fails the check.
+    shrunk = inputs.tau.copy()
+    shrunk.loc[inputs.arm == "womens", "mens"] *= 0.7
+    biased = PolicyInputs(
+        inputs.customer_id, inputs.arm, inputs.y, shrunk, inputs.response, inputs.pre
+    )
+    assignments, info = build_policies(biased, "mens", rng, 5_000)
+    table = arm_counts_check(
+        biased, {"uplift": assignments["uplift"] != "control", "do_not_email": info["suppressed"]}
+    )
+    assert not table["passed"].any(), table[["group", "p_value"]]
+
+
+def test_committed_policies_do_not_select_on_the_arm():
+    """The real results: targeted and do-not-email counts by arm pass the sample-ratio test."""
+    rows = json.loads(config.RESULTS_JSON.read_text())["policy"]["arm_counts"]
+    by_group = {r["group"]: r for r in rows}
+    for group in (*MODEL_BASED, "do_not_email"):
+        assert by_group[group]["passed"], by_group[group]

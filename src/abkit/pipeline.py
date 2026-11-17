@@ -527,7 +527,7 @@ STAGES: dict[str, Stage] = {
             lambda s: run_power(s.db_path, s.reports_dir),
             inputs=lambda s: [s.parquet_path],
             outputs=lambda s: [
-                *_tables(s, "power", "power_sample_size", "power_curve"),
+                *_tables(s, "power", "power_sample_size", "power_curve", "power_mde_per_arm"),
                 *_figures(s, "power_curve.png"),
             ],
             sections=("power",),
@@ -621,6 +621,8 @@ STAGES: dict[str, Stage] = {
                     uplift_policy.PROFILE_TABLE_NAME,
                     uplift_policy.CALIBRATION_TABLE_NAME,
                     uplift_policy.SUPPRESSED_TABLE_NAME,
+                    uplift_policy.VS_RANDOM_TABLE_NAME,
+                    uplift_policy.ARM_COUNTS_TABLE_NAME,
                 ),
                 *_figures(s, uplift_policy.FIGURE_NAME),
             ],

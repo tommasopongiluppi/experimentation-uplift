@@ -21,6 +21,7 @@ from abkit.power import (
     design_inputs,
     holm_alpha,
     mde,
+    per_arm_mde_table,
     power_for_effect,
     run_power,
     sample_size,
@@ -327,3 +328,29 @@ def test_run_power_writes_outputs(fixture_db, tmp_path):
     assert set(section["metrics"]) == set(POWER_METRICS)
     assert len(section["mde_rows"]) == len(mdes)
     assert len(section["sample_size_rows"]) == len(mdes) * len(RELATIVE_LIFTS)
+
+
+def test_per_arm_mde_uses_each_arms_own_variance(customers):
+    con = customers_con(customers)
+    alphas = {"unadjusted": 0.05, "holm": 0.025}
+    table = per_arm_mde_table(con, alphas, power=0.8)
+    assert len(table) == 3 * 2 * 2 * 2  # metrics x emails x CUPED flag x levels
+    row = table[
+        (table["metric"] == "spend")
+        & (table["treatment"] == "mens")
+        & (table["alpha_label"] == "holm")
+        & ~table["cuped"]
+    ].iloc[0]
+    spend_t = customers.loc[customers["arm"] == "mens", "spend"]
+    spend_c = customers.loc[customers["arm"] == "control", "spend"]
+    se = np.sqrt(spend_t.var(ddof=1) / len(spend_t) + spend_c.var(ddof=1) / len(spend_c))
+    z = stats.norm.ppf(1 - 0.025 / 2) + stats.norm.ppf(0.8)
+    assert row["se"] == pytest.approx(se)
+    assert row["mde_absolute"] == pytest.approx(z * se)
+    assert row["mde_relative"] == pytest.approx(z * se / spend_c.mean())
+    assert row["observed_diff"] == pytest.approx(spend_t.mean() - spend_c.mean())
+    assert row["observed_over_mde"] == pytest.approx(row["observed_diff"] / row["mde_absolute"])
+    # CUPED can only change the standard error through the covariate, never by much here.
+    with_cuped = table[table["cuped"]].set_index(["metric", "treatment", "alpha_label"])["se"]
+    without = table[~table["cuped"]].set_index(["metric", "treatment", "alpha_label"])["se"]
+    assert ((with_cuped / without) > 0.9).all() and ((with_cuped / without) < 1.01).all()

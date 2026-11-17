@@ -230,7 +230,7 @@ def test_bootstrap_is_seeded(rng):
 @pytest.mark.slow
 def test_bootstrap_interval_coverage(rng):
     """Percentile interval for the Qini gain covers the large-sample value about 95% of the time."""
-    n, n_sim = 2_000, 150
+    n, n_sim = 2_000, 600
     reference = qini_coefficient(*_synthetic(rng, 400_000)).gain * n / 400_000
     hits = 0
     for _ in range(n_sim):
@@ -239,7 +239,7 @@ def test_bootstrap_interval_coverage(rng):
         hits += s.loc["qini_gain", "ci_low"] <= reference <= s.loc["qini_gain", "ci_high"]
     coverage = hits / n_sim
     mcse = np.sqrt(0.95 * 0.05 / n_sim)
-    assert abs(coverage - 0.95) < 3 * mcse + 0.02, (coverage, mcse)
+    assert abs(coverage - 0.95) < 3 * mcse, (coverage, mcse)
 
 
 # --- plots -----------------------------------------------------------------------------------

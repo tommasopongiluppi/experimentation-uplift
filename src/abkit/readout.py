@@ -197,7 +197,7 @@ def build_readout(
         table["family"].map(FAMILY_METHODS),
     )
     table["p_adj"] = adjust_pvalues(table["p_value"], table["family"])
-    table["significant"] = table["p_adj"] < alpha
+    table["significant"] = table["p_adj"] <= alpha
     boot_cols = [c for c in table.columns if c.startswith("boot_")]
     order = [c for c in table.columns if c not in boot_cols] + boot_cols
     return table[order], cap

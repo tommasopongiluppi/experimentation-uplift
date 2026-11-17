@@ -11,20 +11,19 @@ that produces every number below.
 ## TL;DR
 
 <!-- RESULTS:summary -->
-**Decision: send the Mens email, to everyone who can be emailed.** Both emails beat sending nothing on spend, and the Mens email beats the Womens email. If only 10,000 emails can be sent, send them to the 10,000 most recent purchasers. The three rankings tested (response model, recency rule, uplift model) are not separated from each other; all three bring more conversions than random targeting, but none is shown to bring more visits or spend, so the case for targeting rests on conversions. The recency rule needs no model.
+**Decision: send the Mens email, to everyone who can be emailed.** Both emails beat sending nothing on spend, and the Mens email beats the Womens email. This assumes an email costs nothing: the data hold no cost, margin or unsubscribe figures.
 
-| Headline (two-week window) | Estimate | 95% interval | Adjusted p |
-|---|---|---|---|
-| Mens vs no email: spend per customer | +\$0.77 | \$0.49 to \$1.05 | <0.001 |
-| Womens vs no email: spend per customer | +\$0.42 | \$0.17 to \$0.68 | 0.001 |
-| Mens vs Womens: spend per customer | +\$0.35 | \$0.03 to \$0.66 | 0.030 |
-| Mens vs no email: visit rate (10.6% → 18.3%) | +7.7 pp | 7.0 to 8.3 pp | <0.001 |
+| Headline (two-week window) | Estimate | 95% interval | Adjusted p | Correction |
+|---|---|---|---|---|
+| Mens vs no email: spend per customer | +\$0.77 | \$0.49 to \$1.05 | <0.001 | Holm, 2 primary tests |
+| Womens vs no email: spend per customer | +\$0.42 | \$0.17 to \$0.68 | 0.001 | Holm, 2 primary tests |
+| Mens vs Womens: spend per customer | +\$0.35 | \$0.03 to \$0.66 | 0.030 | Benjamini-Hochberg, 7 secondary tests |
+| Mens vs no email: visit rate (10.6% → 18.3%) | +7.7 pp | 7.0 to 8.3 pp | <0.001 | Benjamini-Hochberg, 7 secondary tests |
 
-Adjusted p: rows 1 and 2, Holm across the 2 tests of the primary family (each email against no email on spend); rows 3 and 4, Benjamini-Hochberg across the 7 tests of the secondary family (every other comparison of spend, conversion and visits). Intervals are unadjusted.
+Holm is the correction across the 2 primary tests (each email against no email on spend); Benjamini-Hochberg is the correction across the 7 secondary tests (every other comparison of spend, conversion and visits). Intervals are unadjusted.
 
 - **Value.** Sent to all 64,000 customers, the Mens email brings about \$49,000 of extra revenue in two weeks (\$32,000 to \$67,000). Profit cannot be computed: the data hold no cost or margin.
-- **Targeting 10,000 customers.** The response model, the recency rule and the uplift model are not separated from each other on visits, conversions or spend. Against random targeting all three bring more conversions (the recency rule +60 conversions, 3 to 126), but none is shown to bring more visits or spend.
-- **Whom not to email.** Nobody identified. The 10,000 customers the model ranks lowest still visit more when emailed: +7.0 pp (5.3 to 8.8 pp).
+- **Targeting under a budget, and whom not to email: under revision.** The targeting results were corrected after an independent review (analysis plan D11 to D13). The corrected numbers and the decision rule applied to them are in [Who to email](#5-who-to-email); this summary will be rewritten from them.
 <!-- /RESULTS:summary -->
 
 The analysis plan was written and committed before any outcome was compared between arms
@@ -53,8 +52,8 @@ These are the questions of the original challenge. Each answer is generated from
 |---|---|---|
 | Q1 | Which email performed better, and on which metric? | The Mens email, on all three metrics. Against the Womens email: visit rate +3.1 pp (2.4 to 3.8 pp); conversion rate +0.37 pp (0.17 to 0.57 pp); spend per customer +\$0.35 (\$0.03 to \$0.66), each significant after adjustment. |
 | Q2 | How much incremental spend per customer did each email drive? | Mens +\$0.77 (\$0.49 to \$1.05), a relative lift of +118%; Womens +\$0.42 (\$0.17 to \$0.68), a relative lift of +65%, on a no-email baseline of \$0.65 per customer. |
-| Q3 | If only 10,000 customers can be emailed, who should get which email? | The uplift policy (each customer's better email, top 10,000 by predicted uplift) brings 852 extra visits (627 to 1,062). No ranking is separated from the others (the response model has the highest point estimate), so use the simplest one: the Mens email to the 10,000 most recent purchasers. |
-| Q4 | Which 10,000 customers should not be emailed? | No such group was found. The 10,000 customers with the lowest predicted uplift still respond to their better email: +7.0 pp visits (5.3 to 8.8 pp). |
+| Q3 | If only 10,000 customers can be emailed, who should get which email? | By the decision rule (analysis plan D10), use the uplift model: it is the only ranking that qualifies. A ranking qualifies when its paired difference against random targeting excludes zero on spend or on visits; here that holds for the uplift model (on spend). |
+| Q4 | Which 10,000 customers should not be emailed? | No such group was found. The 10,000 customers with the lowest predicted uplift still respond to their better email: +7.0 pp visits (5.2 to 9.0 pp). |
 | Q5 | Do the effects differ across customer segments? | For the Womens email, yes: it lifts visits by +7.3 pp (6.4 to 8.2 pp) among past buyers of women's merchandise and by +1.1 pp (0.2 to 2.0 pp) among the rest (interaction adjusted p <0.001). 6 of its 21 interaction tests are significant after Benjamini-Hochberg, against 0 of 21 for the Mens email, whose effect is close to uniform. Exploratory, not a decision. |
 <!-- /RESULTS:questions -->
 
@@ -68,7 +67,7 @@ planned sizes and look alike on everything measured before the email.
 - **Balance: no variable flagged.** The largest absolute standardised mean difference between any two arms, over every pre-treatment variable and level, is 0.017 (`channel` = `phone`), against a threshold of 0.1; 0 are flagged. Chi-square tests of the categorical variables give p = 0.36 (`history_segment`), 0.58 (`zip_code`) and 0.46 (`channel`).
 <!-- /RESULTS:validity -->
 
-The data pass the validation suite ([reports/validation.md](reports/validation.md)). Only
+The data validation report is in [reports/validation.md](reports/validation.md). Only
 variables measured before the email are used as covariates, features or segment definitions.
 
 ## 3. Results
@@ -92,7 +91,7 @@ email.
 Spend against control is the primary family (2 tests, Holm); the other 7 comparisons are secondary (Benjamini-Hochberg). Spend uses Welch's t-test, rates a two-proportion z-test with Newcombe intervals.
 
 - **Sensitivity.** With converters' spend winsorised at \$362.20, the differences against control are +\$0.74 (\$0.47 to \$1.00) for Mens and +\$0.41 (\$0.18 to \$0.65) for Womens. A percentile bootstrap of raw spend (10,000 resamples) gives \$0.49 to \$1.07 for Mens and \$0.18 to \$0.68 for Womens, so the normal approximation is not doing the work.
-- **Bayesian readout** (Bayesian bootstrap on spend, 200,000 draws). P(Mens better than no email) = 1.000, credible interval \$0.49 to \$1.06. P(Womens better than no email) = 0.999, credible interval \$0.17 to \$0.68. P(Mens better than Womens) = 0.985, credible interval \$0.03 to \$0.66. The pre-registered rule (ship if P(better) is at least 0.95 and the expected loss is below 1% of the control mean) recommends the Mens email. The frequentist and Bayesian readouts agree, as expected with arms this large and a flat prior.
+- **Bayesian readout** (Bayesian bootstrap on spend, 200,000 draws). P(Mens better than no email) = 1.000, credible interval \$0.49 to \$1.06. P(Womens better than no email) = 0.999, credible interval \$0.17 to \$0.68. P(Mens better than Womens) = 0.985, credible interval \$0.03 to \$0.66. The pre-registered rule (ship if P(better) is at least 0.95 and the expected loss is below 1% of the control mean) recommends the Mens email. The Bayesian bootstrap puts a uniform Dirichlet prior on the weights of the observed spend values and no prior on their size, so with arms this large it is expected to agree with the frequentist readout, and it does.
 <!-- /RESULTS:readout -->
 
 ![Differences between arms with 95% intervals for spend, winsorised spend, conversion and visits, each shown raw, with CUPED and with the Lin regression; the three intervals coincide](reports/figures/intervals_raw_cuped_lin.png)
@@ -108,7 +107,8 @@ Spend against control is the primary family (2 tests, Holm); the other 7 compari
 | Conversion rate | 0.026 to 0.032 | 0.07% to 0.10% | -0.24% to 0.27% |
 | Visit rate | 0.063 to 0.067 | 0.40% to 0.44% | 2.81% to 2.91% |
 
-- For spend, the standard error of the Mens effect goes from \$0.14525 to \$0.14522 with CUPED and to \$0.14528 with the regression, and the minimum detectable effect stays at \$0.3461 (\$0.3461 with CUPED). A negative value in the table means the adjustment added a little noise.
+- For spend, the standard error of the Mens effect goes from \$0.14525 to \$0.14522 with CUPED and to \$0.14528 with the regression. A negative value in the table means the adjustment added a little noise.
+- **Minimum detectable effect.** With each arm's own variance, at the Holm level and 80% power, the smallest spend effect the experiment could detect is \$0.45 for Mens (\$0.45 with CUPED; observed \$0.77) and \$0.40 for Womens (\$0.40 with CUPED; observed \$0.42). CUPED does not move it. The emails raise the variance of spend in their own arm, so these are larger than a planning figure based on the control variance alone.
 - **Why.** 99.1% of customers spend nothing in the two weeks, so spend is almost entirely a rare, noisy purchase event that last year's spend cannot predict (correlation at most 0.024). Visits are more predictable, and there the full regression removes up to 2.9%. CUPED pays off when the covariate is the same metric measured before the experiment on returning users; a one-off campaign with a two-week window is not that setting.
 <!-- /RESULTS:cuped -->
 
@@ -122,23 +122,24 @@ two simulations below show what the usual shortcuts would have cost.
 <!-- RESULTS:peeking -->
 Simulated experiments shaped like this one (21,306 customers per arm arriving evenly over 14 days, visit rate as in the control arm, 20,000 runs). Looking every day and stopping at the first p < 0.05 declares a winner in 21.9% of experiments in which the email does nothing, against 4.8% for a single test at the end.
 
-| Rule, 14 daily looks | False positive rate, no true effect (± Monte Carlo SE) | Power at a 7.9% relative lift | Mean stopping day at that lift |
-|---|---|---|---|
-| One test at the end (no peeking) | 4.8% (±0.2%) | 79.0% (±0.3%) | 14.0 |
-| Unadjusted test at every look, stop at the first p < 0.05 | 21.9% (±0.3%) | 87.0% (±0.2%) | 6.7 |
-| Bayesian rule at every look, stop when P(better) leaves (0.05, 0.95) | 38.4% (±0.3%) | 93.0% (±0.2%) | 5.3 |
-| Pocock boundary | 4.9% (±0.2%) | 65.8% (±0.3%) | 9.7 |
-| O'Brien-Fleming boundary | 4.9% (±0.2%) | 77.3% (±0.3%) | 10.8 |
-| Mixture SPRT (always-valid p-value) | 0.9% (±0.1%) | 46.5% (±0.4%) | 11.7 |
+| Rule | False positive rate with a single look (± Monte Carlo SE) | False positive rate with 14 daily looks | Power at a 7.9% relative lift | Mean stopping day at that lift |
+|---|---|---|---|---|
+| One test at the end (no peeking) | 5.2% (±0.2%) | 4.8% (±0.2%) | 79.0% (±0.3%) | 14.0 |
+| Unadjusted test at every look, stop at the first p < 0.05 | 5.2% (±0.2%) | 21.9% (±0.3%) | 87.0% (±0.2%) | 6.7 |
+| Bayesian rule at every look, stop when P(better) leaves (0.05, 0.95) | 10.5% (±0.3%) | 38.4% (±0.3%) | 93.0% (±0.2%) | 5.3 |
+| Pocock boundary | 5.1% (±0.2%) | 4.9% (±0.2%) | 65.8% (±0.3%) | 9.7 |
+| O'Brien-Fleming boundary | 5.1% (±0.2%) | 4.9% (±0.2%) | 77.3% (±0.3%) | 10.8 |
+| Mixture SPRT (always-valid p-value) | 0.2% (±0.0%) | 0.9% (±0.1%) | 46.5% (±0.4%) | 11.7 |
+
+Compare each rule with its own single-look rate. The Bayesian rule is two-sided at 10% by construction, so it starts from about twice the rate of the 5% test; peeking multiplies both. The single-look column uses 10,000 runs.
 
 The group-sequential boundaries are calibrated by simulation; for five looks they come out at 2.416 (Pocock) and 2.040 (O'Brien-Fleming), against the published 2.413 and 2.04.
 <!-- /RESULTS:peeking -->
 
 ![False positive rate against the number of looks for each stopping rule: unadjusted and Bayesian peeking climb well above the nominal level, the corrected rules stay at or below it](reports/figures/sequential_fpr_vs_looks.png)
 
-The valid rules pay for early stopping with power, and the choice between them is a choice of
-when to spend it: Pocock stops early more often, O'Brien-Fleming keeps almost all the power of
-a single test, and the mixture SPRT allows a look after every customer at a higher price.
+The valid rules trade power for the option to stop early, each in its own way; the last two
+columns of the table show what each one gives up and gains.
 
 ### Multiple testing
 
@@ -168,57 +169,82 @@ response model, a recency rule and a random order.
 <!-- RESULTS:uplift_models -->
 | Ranking | Mens email vs no email | Womens email vs no email |
 |---|---|---|
-| S-learner | 0.008 (-0.006 to 0.023) | 0.060 (0.045 to 0.076) |
-| T-learner | 0.010 (-0.004 to 0.025) | 0.051 (0.035 to 0.067) |
-| X-learner | -0.002 (-0.017 to 0.013) | 0.063 (0.048 to 0.079) |
-| Response model (baseline) | 0.023 (0.008 to 0.036) | 0.035 (0.021 to 0.050) |
+| S-learner | 0.010 (-0.005 to 0.025) | 0.063 (0.047 to 0.079) |
+| T-learner | 0.009 (-0.006 to 0.025) | 0.060 (0.044 to 0.077) |
+| X-learner | 0.008 (-0.006 to 0.024) | 0.062 (0.046 to 0.078) |
+| Response model (baseline) | 0.025 (0.011 to 0.039) | 0.037 (0.022 to 0.052) |
 | Recency rule (baseline) | 0.013 (0.000 to 0.027) | -0.004 (-0.020 to 0.013) |
-| Random order (baseline) | -0.008 (-0.023 to 0.007) | -0.001 (-0.017 to 0.013) |
+| Random order (baseline) | -0.008 (-0.023 to 0.007) | -0.007 (-0.021 to 0.008) |
 
 Normalised Qini coefficient on visits, out of fold, with 95% bootstrap intervals (1,000 resamples): 0 is a random ranking, 1 the best ranking the outcomes allow.
 
-- **Womens email.** The X-learner ranks best, ahead of the random order, recency rule, response model and T-learner by a paired bootstrap difference, and is not separated from the S-learner.
-- **Mens email.** The response model ranks best, ahead of the random order and X-learner by a paired bootstrap difference, and is not separated from the recency rule, S-learner and T-learner. No uplift learner beats the baselines: the email's effect on visits is close to the same for everyone, so there is little to rank.
-- **Stability.** Repeating the cross-fitting under 10 fold seeds, the X-learner's coefficient on the Womens pair has median 0.062 (range 0.054 to 0.069) and is above the response model in 10 of 10 seeds.
-- **The choice of the X-learner is post hoc (deviation D8).** It was picked for the policy after these results were seen, from three learners evaluated on the same data, so its coefficient is the largest of several noisy estimates and is optimistic. Read "best" as "chosen", not as "shown to be better".
+- **Womens email.** The S-learner ranks best, ahead of the random order, recency rule and response model by a paired bootstrap difference, and is not separated from the T-learner and X-learner.
+- **Mens email.** The response model ranks best, ahead of the random order, S-learner and X-learner by a paired bootstrap difference, and is not separated from the recency rule and T-learner. No uplift learner beats the baselines: the email's effect on visits is close to the same for everyone, so there is little to rank.
+- **Stability.** Repeating the cross-fitting under 10 fold seeds, the X-learner's coefficient on the Womens pair has median 0.061 (range 0.056 to 0.064) and is above the response model in 10 of 10 seeds.
+- **Policy value across fold seeds.** Incremental visits at the 10,000 budget over the same 10 seeds: uplift policy 807 in the committed seed, median 882, range 771 to 909; response model 954 in the committed seed, median 984, range 942 to 1,077. The bootstrap intervals hold the folds fixed, so this spread comes on top of them; read the median as the central value.
+- **The choice of the X-learner for the policy is post hoc (deviation D8).** It was picked from three learners after an earlier evaluation on the same data, which the correction of deviation D11 has since replaced; the choice was not revisited, so that the policy is not selected a second time on the corrected results. Read "chosen", not "shown to be better": in the table above it is not the top-ranked learner on the Womens pair, and it is not separated from the other learners that rank near it.
 <!-- /RESULTS:uplift_models -->
 
 ### The budgeted policy
 
-Each policy picks the customers to email and the email each one gets.
+Each policy picks the customers to email and the email each one gets. Three rankings are
+compared: the recency rule (the most recent purchasers get the A/B winner; no model), the
+response model (the customers most likely to visit, each with the email they are more likely
+to respond to) and the uplift model (the customers with the highest predicted effect of an
+email, each with their better email). Two random baselines are shown next to them.
 
 <!-- RESULTS:policy -->
-| Policy, 10,000 emails | Mens / Womens emails | Incremental visits (95% interval) | Incremental spend (95% interval) | Uplift policy minus this policy, visits |
+| Policy, 10,000 emails | Mens / Womens emails | Incremental visits | Incremental conversions | Incremental spend |
 |---|---|---|---|---|
-| Uplift policy (X-learner) | 7,409 / 2,591 | 852 (627 to 1,062) | \$14,702 (\$6,314 to \$24,265) | reference |
-| Response model | 7,975 / 2,025 | 1,047 (816 to 1,287) | \$12,698 (\$3,467 to \$22,614) | -195 (-441 to 12) |
-| Recency rule | 10,000 / 0 | 879 (681 to 1,095) | \$9,683 (\$1,817 to \$18,121) | -27 (-276 to 204) |
-| Random targeting (one draw) | 10,000 / 0 | 822 (645 to 990) | \$7,138 (\$1,077 to \$13,721) | +30 (-237 to 285) |
+| Uplift policy (X-learner) | 7,786 / 2,214 | 807 (594 to 1,032) | 129 (72 to 183) | \$16,806 (\$7,601 to \$26,996) |
+| Response model | 7,707 / 2,293 | 954 (717 to 1,188) | 99 (42 to 159) | \$9,373 (\$965 to \$18,308) |
+| Recency rule | 10,000 / 0 | 879 (681 to 1,095) | 87 (39 to 144) | \$9,683 (\$1,817 to \$18,121) |
+| Random customers, A/B winner (one draw; plan baseline 2) | 10,000 / 0 | 822 (645 to 990) | 27 (-12 to 66) | \$7,138 (\$1,077 to \$13,721) |
+| Random customers, random email (one draw; plan baseline 1) | 5,011 / 4,989 | 750 (582 to 918) | 33 (-9 to 75) | \$7,630 (\$1,954 to \$14,017) |
 
-Values are increments over emailing nobody, estimated by inverse propensity weighting with the design probability, with a paired bootstrap (1,000 resamples). The recency rule and random targeting send the A/B winner (Mens).
+Increments over emailing nobody with 95% intervals, estimated by inverse propensity weighting with the design probability and a paired bootstrap (1,000 resamples). The recency rule sends the A/B winner (Mens).
 
-- **The uplift policy is not separated from the response model** on visits, conversions or spend: every paired bootstrap interval includes zero. **The uplift policy is not separated from the recency rule** on visits, conversions or spend: every paired bootstrap interval includes zero. The recency rule and the response model are not separated from each other either. The response model has the highest point estimate on visits, but its lead over the recency rule, 168 visits (-57 to 423), includes zero. With no ranking separated from another the recommendation is the simplest one, the recency rule. The analysis plan pre-registered no rule for this choice.
-- **Against random targeting** (the pre-registered draw), the paired differences in visits are +30 (-237 to 285) for the uplift policy, +225 (-33 to 492) for the response model and +57 (-177 to 291) for the recency rule, and in conversions +69 (6 to 129) for the uplift policy, +90 (24 to 159) for the response model and +60 (3 to 126) for the recency rule: none excludes zero on visits, all 3 exclude zero on conversions and none excludes zero on spend. So the case for targeting at all rests on conversions, an outcome the models were not trained on.
-- **Budget curve.** Extending each ranking to every budget in steps of 1,000, the recency rule is at or above the uplift policy at 18 of 63 budgets on visits and at 32 of 63 on spend. At the budget of 10,000 it is above the uplift policy on visits (879 against 852). These are point estimates; the curves cross repeatedly and no ranking leads throughout.
-- **Do-not-email list.** The 10,000 customers with the lowest predicted uplift, given their better email, gain +7.0 pp in visit rate (5.3 to 8.8 pp) and +\$0.98 in spend (\$0.41 to \$1.61). The model does not find customers who are better left alone.
+**Against random targeting.** Random targeting of the same number of customers with the Mens email has a known expectation, the number of emails times the average effect: 766 visits, 68 conversions and \$7,698 of spend. The table gives each policy minus that expectation, with both recomputed on the same bootstrap resamples; a star marks an interval that excludes zero.
+
+| Policy minus the random expectation | Visits | Conversions | Spend |
+|---|---|---|---|
+| Uplift policy (X-learner) | +41 (-163 to 232) | +61* (9 to 108) | +\$9,107* (\$323 to \$17,973) |
+| Response model | +188 (-25 to 409) | +31 (-21 to 82) | +\$1,675 (-\$6,309 to \$9,608) |
+| Recency rule | +113 (-72 to 301) | +19 (-27 to 68) | +\$1,985 (-\$5,008 to \$9,249) |
+| Random customers, A/B winner (one draw; plan baseline 2) | +56 (-113 to 218) | -41* (-79 to -5) | -\$560 (-\$6,779 to \$5,535) |
+| Random customers, random email (one draw; plan baseline 1) | -16 (-191 to 155) | -35 (-76 to 5) | -\$68 (-\$6,244 to \$6,565) |
+
+- **Decision rule.** By the decision rule (analysis plan D10), use the uplift model: it is the only ranking that qualifies. A ranking qualifies when its paired difference against random targeting excludes zero on spend or on visits; here that holds for the uplift model (on spend). The rule was written after the uncorrected results had been seen and before these numbers were computed.
+- **No ranking is separated from another** on visits, conversions or spend. In visits: the uplift policy minus the response model -147 (-369 to 63), the uplift policy minus the recency rule -72 (-303 to 168) and the response model minus the recency rule +75 (-165 to 327).
+- **Budget curve.** Extending each ranking to every budget in steps of 1,000, the recency rule is at or above the uplift policy at 47 of 63 budgets on visits and at 24 of 63 on spend. These are point estimates.
+- **Do-not-email list.** The 10,000 customers with the lowest predicted uplift, given their better email, gain +7.0 pp in visit rate (5.2 to 9.0 pp) and +\$1.11 in spend (\$0.45 to \$1.84). The model does not find customers who are better left alone.
+
+**Does the selection depend on the arm?** A policy built from pre-treatment variables and out-of-fold scores must pick customers from the three arms in the proportions of the whole population; if it does not, its value above is biased. Counts of the selected customers by the arm they were randomised to:
+
+| Selected group | Mens arm | Womens arm | Control | Expected (Mens / Womens / Control) | p | Passes |
+|---|---|---|---|---|---|---|
+| Uplift policy, targeted | 3,389 | 3,236 | 3,375 | 3,329 / 3,342 / 3,329 | 0.08 | yes |
+| Response model, targeted | 3,283 | 3,365 | 3,352 | 3,329 / 3,342 / 3,329 | 0.62 | yes |
+| Mens-by-default policy (exploratory), targeted | 3,367 | 3,344 | 3,289 | 3,329 / 3,342 / 3,329 | 0.63 | yes |
+| Do-not-email list | 3,353 | 3,335 | 3,312 | 3,329 / 3,342 / 3,329 | 0.87 | yes |
+| Recency rule, targeted (no model) | 3,309 | 3,360 | 3,331 | 3,329 / 3,342 / 3,329 | 0.89 | yes |
+| Random draw (no model) | 3,304 | 3,394 | 3,302 | 3,329 / 3,342 / 3,329 | 0.54 | yes |
+
+Every group passes the sample-ratio test (alarm threshold 0.001). An earlier version of the scoring failed it; that error and its correction are deviation D11.
 <!-- /RESULTS:policy -->
 
 ![Incremental visits and spend against the number of customers emailed for the uplift policy, the response model, the recency rule and random targeting; the four curves stay close together and cross repeatedly](reports/figures/policy_budget_curve.png)
 
-The reason is in the model results above. The A/B winner lifts visits by about the same
-amount for nearly everyone, so any rule that sends it to the same number of customers
-collects about the same number of extra visits. The uplift model only has something to add
-in choosing who gets the Womens email, which is a minority of the budget.
-
-### Random targeting: one draw and its expectation
+### Random targeting: the expectation and one draw
 
 <!-- RESULTS:random_targeting -->
-| Random targeting, 10,000 Mens emails | Pre-registered draw (bootstrap interval) | Exact expectation, budget times average effect (interval from the effect's) |
-|---|---|---|
-| Incremental visits | 822 (645 to 990) | 766 (700 to 832) |
-| Incremental spend | \$7,138 (\$1,077 to \$13,721) | \$7,698 (\$4,851 to \$10,545) |
+| 10,000 random customers | Exact expectation, Mens email | One draw, Mens email (baseline 2) | That draw minus the expectation | Same draw, random email (baseline 1) |
+|---|---|---|---|---|
+| Incremental visits | 766 (704 to 837) | 822 (645 to 990) | +56 (-113 to 218) | 750 (582 to 918) |
+| Incremental conversions | 68 (51 to 86) | 27 (-12 to 66) | -41* (-79 to -5) | 33 (-9 to 75) |
+| Incremental spend | \$7,698 (\$4,916 to \$10,489) | \$7,138 (\$1,077 to \$13,721) | -\$560 (-\$6,779 to \$5,535) | \$7,630 (\$1,954 to \$14,017) |
 
-The draw is one random set of customers (analysis plan §11, deviation D9) and is what enters the paired comparisons above. The expectation needs no draw. The two differ by sampling noise, and the draw's interval is wider because it rests on the customers who happened to be drawn.
+The expectation is the budget times the average effect and needs no draw; its interval comes from the bootstrap of that effect. The draw is one random set of customers (analysis plan §11, deviations D9 and D13). Its difference from the expectation is the luck of that one draw; a star marks an outcome on which the drawn customers landed measurably off. That is why the rankings are compared with the expectation and not with the draw (deviation D12).
 <!-- /RESULTS:random_targeting -->
 
 ## 6. How it is verified
@@ -234,7 +260,8 @@ most, because they can fail in ways a code review would not catch.
 | Published boundary constants | The simulated five-look boundaries (2.416 and 2.040) match the published 2.413 and 2.04; with one look both reduce to the normal quantile; every valid rule holds its false positive rate. | A sequential simulation that is wrong in a way that still looks plausible. |
 | Oracle rankings | On synthetic customers with a known individual effect, the true-effect ranking scores a normalised Qini of 1, random rankings average 0, and each learner ranks customers in line with the planted effect. | An uplift metric or learner that rewards likely responders, not persuadable ones. |
 | Known answers | Every estimator is compared with scipy or statsmodels, a closed form or planted data: for example 20 null segments give at least one false discovery in 63.5% of runs against 64.2% in theory, and inverse propensity weighting recovers the known value of a fixed policy. | Formula and indexing errors. |
-| Leakage guard | The feature builder refuses any outcome or arm column, and every score is out of fold. | Results inflated by information from the outcome. |
+| Leakage guard | The feature builder refuses any outcome or arm column by name, and before any fit a feature whose values copy or recode the outcome or the treatment is rejected; every score is out of fold. A noisy function of an outcome cannot be detected from values. | Results inflated by information from the outcome. |
+| Selection independent of the arm | On pure-noise features a rule that picks the highest scores selects customers from the three arms in the design proportions, and the earlier fold-averaged scoring fails the same sample-ratio test; the committed policies must pass it. | A policy that selects on the realised arm, which biases its estimated value. |
 <!-- /RESULTS:verification -->
 
 The slow simulations run on demand (`pytest -m slow`); everything else, including an

@@ -40,6 +40,7 @@ CURVE_POINTS: int = 241
 TABLE_NAME = "power"
 SAMPLE_SIZE_TABLE_NAME = "power_sample_size"
 CURVE_TABLE_NAME = "power_curve"
+PER_ARM_TABLE_NAME = "power_mde_per_arm"
 FIGURE_NAME = "power_curve.png"
 
 
@@ -450,6 +451,73 @@ def mde_table(
     return pd.DataFrame(rows)
 
 
+def per_arm_mde_table(
+    con: duckdb.DuckDBPyConnection,
+    alphas: dict[str, float],
+    power: float = POWER_TARGET,
+) -> pd.DataFrame:
+    """MDE of each email-vs-control comparison with each arm's own realised variance.
+
+    :func:`mde_table` is a planning calculation: it gives both arms the control arm's
+    variance, which is all that is known before an experiment. An email that works raises
+    the variance of its own arm (more non-zero spend), so the realised standard error is
+    larger than the planning one. Here the standard error is the Welch one,
+    ``sqrt(var_t / n_t + var_c / n_c)``, or the CUPED standard error of the same
+    comparison, and ``MDE = (z_{1 - alpha/2} + z_{power}) se``.
+
+    Parameters
+    ----------
+    con : duckdb.DuckDBPyConnection
+        Connection with a ``customers`` table.
+    alphas : dict
+        Label to two-sided level.
+    power : float
+        Target power.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per metric, email, level and CUPED flag: the standard error, the MDE in
+        absolute terms and relative to the control mean, the observed difference and its
+        ratio to the MDE.
+    """
+    metrics = arm_metrics(con).set_index(["metric", "arm"])
+    sums = arm_sufficient_stats(con)
+    rows = []
+    for metric in POWER_METRICS:
+        ctrl = metrics.loc[(metric, config.CONTROL)]
+        for email in config.TREATMENTS:
+            arm = metrics.loc[(metric, email)]
+            adjusted = cuped(
+                moments_from_stats(sums, email, metric),
+                moments_from_stats(sums, config.CONTROL, metric),
+            )
+            raw_se = math.sqrt(arm["var"] / arm["n"] + ctrl["var"] / ctrl["n"])
+            observed = float(arm["mean"] - ctrl["mean"])
+            for with_cuped, se in ((False, raw_se), (True, float(adjusted.se))):
+                for label, level in alphas.items():
+                    absolute = _z_sum(level, power) * se
+                    rows.append(
+                        {
+                            "metric": metric,
+                            "treatment": email,
+                            "control": config.CONTROL,
+                            "alpha_label": label,
+                            "alpha": level,
+                            "power": power,
+                            "cuped": with_cuped,
+                            "n_treatment": int(arm["n"]),
+                            "n_control": int(ctrl["n"]),
+                            "se": se,
+                            "mde_absolute": absolute,
+                            "mde_relative": absolute / float(ctrl["mean"]),
+                            "observed_diff": observed,
+                            "observed_over_mde": observed / absolute,
+                        }
+                    )
+    return pd.DataFrame(rows)
+
+
 def sample_size_table(
     inputs: pd.DataFrame,
     alphas: dict[str, float],
@@ -590,6 +658,7 @@ def build_power_tables(
     alphas = {"unadjusted": alpha, "holm": holm_alpha(alpha, N_PRIMARY_TESTS)}
     inputs = design_inputs(con)
     mdes = mde_table(inputs, n_per_arm, alphas, power)
+    per_arm = per_arm_mde_table(con, alphas, power)
     sizes = sample_size_table(inputs, alphas, lifts, power)
     curve = power_curve_table(inputs, n_per_arm, alphas, mdes)
     design = {
@@ -602,6 +671,11 @@ def build_power_tables(
         "relative_lifts": list(lifts),
         "baseline_arm": config.CONTROL,
         "cuped_covariate": "history",
+        "mde_variance_note": (
+            "mde_rows give both arms the control variance (a planning calculation); "
+            "mde_per_arm_rows use each arm's realised variance."
+        ),
+        "mde_per_arm_rows": json_records(per_arm),
         "metrics": {
             str(r["metric"]): {k: v for k, v in r.items() if k != "metric"}
             for r in json_records(inputs)
@@ -634,6 +708,7 @@ def run_power(
     write_table(mdes, TABLE_NAME, tables)
     write_table(sizes, SAMPLE_SIZE_TABLE_NAME, tables)
     write_table(curve, CURVE_TABLE_NAME, tables)
+    write_table(pd.DataFrame(design["mde_per_arm_rows"]), PER_ARM_TABLE_NAME, tables)
     plots.plot_power_curve(curve, mdes, reports_dir / "figures" / FIGURE_NAME)
     update_results(
         "power",
@@ -642,6 +717,7 @@ def run_power(
             "table": f"tables/{TABLE_NAME}.csv",
             "sample_size_table": f"tables/{SAMPLE_SIZE_TABLE_NAME}.csv",
             "curve_table": f"tables/{CURVE_TABLE_NAME}.csv",
+            "per_arm_table": f"tables/{PER_ARM_TABLE_NAME}.csv",
             "figure": f"figures/{FIGURE_NAME}",
             "mde_rows": json_records(mdes),
             "sample_size_rows": json_records(sizes),
