@@ -90,7 +90,9 @@ BUDGETED: tuple[str, ...] = (
     "uplift",
     "uplift_mens_default",
 )
-REFERENCES: tuple[str, ...] = ("uplift", "recency_rule")
+#: Policies every other policy is compared with by a paired bootstrap difference. Random
+#: targeting is a reference so that each ranking can be judged against no ranking at all.
+REFERENCES: tuple[str, ...] = ("uplift", "recency_rule", "random")
 BUDGET_STEP: int = 1_000
 N_RESAMPLES: int = 1_000
 OUTCOMES: tuple[str, ...] = config.OUTCOME_COLS

@@ -1203,7 +1203,9 @@ and not by the realised arm sizes.
 **Uncertainty and comparisons.** A customer-level bootstrap (1,000 resamples, the same
 resampled customers for every policy) gives percentile intervals with the Monte Carlo
 standard error of each end. Policies are compared by the paired bootstrap distribution of
-their difference, never by whether two intervals overlap. The out-of-fold scores are held
+their difference, never by whether two intervals overlap. The comparison table takes the
+uplift policy, the recency rule and random targeting in turn as the reference, so every
+ranking has a paired difference against no ranking at all. The out-of-fold scores are held
 fixed, so the intervals leave out model-fitting variability.
 
 **Tests.** On synthetic potential outcomes with known means, IPW and self-normalised IPW
@@ -1225,8 +1227,10 @@ not here.
   or spend: every paired bootstrap difference between the two includes zero. Its spend point
   estimate is well above the rule's, but the interval is wide because spend is almost all
   zeros. The response model is nominally ahead of the uplift policy on visits, again without
-  a meaningful paired difference. The only paired difference that excludes zero among the
-  budgeted policies is uplift versus random targeting on conversions.
+  a meaningful paired difference. Against random targeting, the uplift policy, the response
+  model and the recency rule are each separated on conversions and none of them on visits or
+  spend. No ranking is separated from another, so the README recommends the simplest one,
+  the recency rule; the analysis plan pre-registered no rule for choosing between policies.
 - The reason is visible in the uplift-model section: the mens email, which the A/B winner
   policies send, lifts visits for nearly everyone with no detectable heterogeneity, so any
   rule that sends it to 10,000 customers captures about the same number of incremental

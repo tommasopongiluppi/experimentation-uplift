@@ -45,6 +45,20 @@ POLICY_PROSE: dict[str, str] = {
     "recency_rule": "the recency rule",
     "random": "random targeting",
 }
+RANKINGS: tuple[str, ...] = ("uplift", "response_model", "recency_rule")
+RANKING_PROSE: dict[str, str] = {
+    "uplift": "the uplift policy",
+    "response_model": "the response model",
+    "recency_rule": "the recency rule",
+}
+POLICY_OUTCOMES: tuple[str, ...] = ("visit", "conversion", "spend")
+ADJUSTMENT_NAMES: dict[str, str] = {"holm": "Holm", "bh": "Benjamini-Hochberg", "none": "none"}
+FAMILY_PROSE: dict[str, str] = {
+    "primary": "each email against no email on spend",
+    "secondary": "every other comparison of spend, conversion and visits",
+    "sensitivity": "each email against no email on winsorised spend",
+    "sensitivity_secondary": "Mens against Womens on winsorised spend",
+}
 OUTCOME_PLURALS: dict[str, str] = {"visit": "visits", "conversion": "conversions", "spend": "spend"}
 SEQUENTIAL_NAMES: dict[str, str] = {
     "fixed": "One test at the end (no peeking)",
@@ -182,6 +196,100 @@ def intro(results: Results) -> str:
     )
 
 
+def _paired(results: Results, first: str, second: str, outcome: str) -> Row:
+    """Paired bootstrap difference ``first - second`` in incremental total, with its interval.
+
+    The comparison table stores each pair once per reference policy; the row is read from
+    whichever side holds it and its sign is reversed if needed.
+    """
+    rows = results["policy"]["comparison_rows"]
+    for reference, other, sign in ((first, second, 1.0), (second, first, -1.0)):
+        matches = [
+            r
+            for r in rows
+            if r["reference"] == reference and r["policy"] == other and r["outcome"] == outcome
+        ]
+        if matches:
+            r = matches[0]
+            low, high = sorted((sign * r["ci_low"], sign * r["ci_high"]))
+            return {
+                "diff": sign * r["diff_incremental_total"],
+                "ci_low": low,
+                "ci_high": high,
+                "meaningful": r["meaningful"],
+            }
+    raise LookupError(f"no paired comparison of {first} and {second} on {outcome}")
+
+
+def _separated_rankings(results: Results) -> list[tuple[str, str, str]]:
+    """Pairs of rankings, with the outcome, whose paired difference excludes zero."""
+    pairs = [(a, b) for i, a in enumerate(RANKINGS) for b in RANKINGS[i + 1 :]]
+    return [
+        (a, b, outcome)
+        for a, b in pairs
+        for outcome in POLICY_OUTCOMES
+        if _paired(results, a, b, outcome)["meaningful"]
+    ]
+
+
+def _signed_range(d: Row) -> str:
+    return f"{d['diff']:+,.0f} ({num_range(d['ci_low'], d['ci_high'])})"
+
+
+def _versus_random(results: Results, outcome: str) -> tuple[dict[str, Row], str]:
+    """Each ranking's paired difference against the random draw, and which exclude zero."""
+    diffs = {name: _paired(results, name, "random", outcome) for name in RANKINGS}
+    apart = [RANKING_PROSE[name] for name, d in diffs.items() if d["meaningful"]]
+    if not apart:
+        verdict = "none excludes zero"
+    elif len(apart) == len(diffs):
+        verdict = f"all {len(apart)} exclude zero"
+    else:
+        verdict = f"only {join_words(apart)} exclude{'s' if len(apart) == 1 else ''} zero"
+    return diffs, verdict
+
+
+def _expected_random(results: Results, outcome: str) -> tuple[float, float, float]:
+    """Return random targeting's expected increment: budget times the winner's average effect."""
+    winner, _ = _winner(results)
+    budget = results["policy"]["budget"]
+    ate = _freq(results, outcome, f"{winner}_vs_control")
+    return budget * ate["diff"], budget * ate["ci_low"], budget * ate["ci_high"]
+
+
+def _targeting_reason(results: Results) -> str:
+    """Write the recommendation under a budget and the reasoning behind it."""
+    winner, _ = _winner(results)
+    name, budget = EMAIL_NAMES[winner], num(results["policy"]["budget"])
+    if _separated_rankings(results):
+        return (
+            f"If only {budget} emails can be sent, the rankings are not all tied: see "
+            "[Who to email](#5-who-to-email) for the one that is ahead."
+        )
+    return (
+        f"If only {budget} emails can be sent, send the {name} email to the {budget} most "
+        "recent purchasers: no ranking is separated from the others, so use the simplest one, "
+        "the recency rule, which needs no model."
+    )
+
+
+def _adjustment_note(results: Results, rows: list[Row]) -> str:
+    """Say what the adjusted p-value of each headline row is adjusted for."""
+    families = results["frequentist"]["families"]
+    by_family: dict[str, list[int]] = {}
+    for i, row in enumerate(rows, 1):
+        by_family.setdefault(row["family"], []).append(i)
+    parts = []
+    for family, numbers in by_family.items():
+        spec = families[family]
+        parts.append(
+            f"{'rows' if len(numbers) > 1 else 'row'} {join_words(str(n) for n in numbers)}, "
+            f"{ADJUSTMENT_NAMES[spec['adjustment']]} across the {spec['n_tests']} tests of the "
+            f"{family} family ({FAMILY_PROSE[family]})"
+        )
+    return f"Adjusted p: {'; '.join(parts)}. Intervals are unadjusted."
+
+
 def summary(results: Results) -> str:
     """Write the decision and the headline numbers with their intervals."""
     winner, other = _winner(results)
@@ -193,12 +301,6 @@ def summary(results: Results) -> str:
     visit = _freq(results, "visit", f"{winner}_vs_control")
     both = all(r["significant"] for r in spend.values())
     winner_ahead = head["significant"] and sign * head["diff"] > 0
-    separated = [
-        outcome
-        for outcome in ("visit", "spend")
-        if policy["uplift_beats_recency_rule"][outcome]
-        or policy["uplift_beats_response_model"][outcome]
-    ]
     lead = (
         f"Both emails beat sending nothing on spend, and the {name} email "
         + (
@@ -209,55 +311,69 @@ def summary(results: Results) -> str:
         if both
         else f"The {name} email is the one supported against sending nothing on spend."
     )
-    targeting = (
-        "the uplift model was not shown to beat the simpler rules, so the model is not worth "
-        "its complexity here"
-        if not separated
-        else "the uplift policy is ahead of a simpler rule on "
-        + join_words(OUTCOME_PLURALS[o] for o in separated)
-    )
+    headline_rows = [*spend.values(), head, visit]
     rows = [
         [f"{_versus(r)}: spend per customer", *_effect(r), p_value(r["p_adj"])]
-        for r in (*spend.values(), head)
+        for r in headline_rows[:3]
     ]
     rows.append(
         [
-            f"{_versus(visit)}: visit rate ({pct(visit['mean_control'])} to "
+            f"{_versus(visit)}: visit rate ({pct(visit['mean_control'])} → "
             f"{pct(visit['mean_treatment'])})",
             *_effect(visit),
             p_value(visit["p_adj"]),
         ]
     )
     everyone = _policy(results, f"all_{winner}", "spend")
-    uplift, recency, response = (
-        _policy(results, p, "visit") for p in ("uplift", "recency_rule", "response_model")
+    thousands = [round(everyone[k], -3) for k in ("incremental_total", "ci_low", "ci_high")]
+
+    values = {r: _policy(results, r, "visit") for r in RANKINGS}
+    ordered = sorted(RANKINGS, key=lambda r: -values[r]["incremental_total"])
+    listed = ", ".join(
+        f"{RANKING_PROSE[r]} {num(values[r]['incremental_total'])} "
+        f"({num_range(values[r]['ci_low'], values[r]['ci_high'])})"
+        for r in ordered
     )
+    best = ordered[0]
+    if best == "recency_rule":
+        lead_note = "The recency rule has the highest point estimate."
+    else:
+        d = _paired(results, best, "recency_rule", "visit")
+        lead_note = (
+            f"{RANKING_PROSE[best].capitalize()} has the highest point estimate, but its lead "
+            f"over the recency rule, {num(d['diff'])} visits "
+            f"({num_range(d['ci_low'], d['ci_high'])}), "
+            f"{'excludes' if d['meaningful'] else 'includes'} zero."
+        )
+    draw = _policy(results, "random", "visit")
+    expected, _, _ = _expected_random(results, "visit")
+    diffs, verdict = _versus_random(results, "visit")
+    _, verdict_conversion = _versus_random(results, "conversion")
+    against = ", ".join(f"{RANKING_PROSE[r]} {_signed_range(diffs[r])}" for r in ordered)
+
     suppressed = find(policy["suppressed_group"], outcome="visit")
     no_group = suppressed["ci_low"] > 0
     return "\n".join(
         [
-            f"**Decision: send the {name} email, to everyone who can be emailed.** {lead} If "
-            f"only {num(budget)} emails can be sent, send the {name} email to the most recent "
-            f"purchasers: {targeting}.",
+            f"**Decision: send the {name} email, to everyone who can be emailed.** {lead} "
+            f"{_targeting_reason(results)}",
             "",
             table(
                 ["Headline (two-week window)", "Estimate", "95% interval", "Adjusted p"],
                 rows,
             ),
             "",
+            _adjustment_note(results, headline_rows),
+            "",
             f"- **Value.** Sent to all {num(policy['n_customers'])} customers, the {name} email "
-            f"is worth about {usd(everyone['incremental_total'], 0)} of extra spend in two "
-            f"weeks ({usd_range(everyone['ci_low'], everyone['ci_high'], 0)}).",
-            f"- **Targeting {num(budget)} customers.** The uplift policy brings "
-            f"{num(uplift['incremental_total'])} extra visits "
-            f"({num_range(uplift['ci_low'], uplift['ci_high'])}), against "
-            f"{num(recency['incremental_total'])} for the recency rule and "
-            f"{num(response['incremental_total'])} for a response model. "
-            + (
-                "None of the paired differences excludes zero."
-                if not separated
-                else "See the policy section for the paired differences."
-            ),
+            f"brings about {usd(thousands[0], 0)} of extra revenue in two weeks "
+            f"({usd_range(thousands[1], thousands[2], 0)}). Profit cannot be computed: the "
+            "data hold no cost or margin.",
+            f"- **Targeting {num(budget)} customers.** Extra visits: {listed}. {lead_note} "
+            f"Random targeting gives {num(draw['incremental_total'])} in the pre-registered "
+            f"draw and {num(expected)} in expectation (budget times the average effect). "
+            f"Paired differences against that draw: {against}; {verdict} on visits, and "
+            f"{verdict_conversion} on conversions.",
             "- **Whom not to email.** "
             + (
                 f"Nobody identified. The {num(suppressed['n_suppressed'])} customers the model "
@@ -312,17 +428,17 @@ def questions(results: Results) -> str:
     q2 = f"{'; '.join(parts)}, on a no-email baseline of {usd(control_mean)} per customer."
 
     uplift = _policy(results, "uplift", "visit")
-    versus = policy["uplift_versus"]["visit"]
-    not_separated = [p for p in ("response_model", "recency_rule") if not versus[p]["meaningful"]]
+    best = max(RANKINGS, key=lambda r: _policy(results, r, "visit")["incremental_total"])
     q3 = (
         f"The uplift policy (each customer's better email, top {budget} by predicted uplift) "
         f"brings {num(uplift['incremental_total'])} extra visits "
         f"({num_range(uplift['ci_low'], uplift['ci_high'])}). "
         + (
-            f"It is not separated from {join_words(POLICY_PROSE[p] for p in not_separated)}, so "
-            f"the practical answer is the {name} email to the {budget} most recent purchasers."
-            if not_separated
-            else "It is separated from the response model and the recency rule."
+            f"No ranking is separated from the others ({RANKING_PROSE[best]} has the highest "
+            f"point estimate), so use the simplest one: the {name} email to the {budget} most "
+            "recent purchasers."
+            if not _separated_rankings(results)
+            else "The rankings are not all tied; see [Who to email](#5-who-to-email)."
         )
     )
 
@@ -753,13 +869,25 @@ def policy(results: Results, reports_dir: Path) -> str:
             else f"The uplift policy is separated from {POLICY_PROSE[name]} on "
             f"{join_words(OUTCOME_PLURALS[o] for o in outcomes)}."
         )
-    random_outcomes = separated("random")
-    verdicts.append(
-        "Against random targeting it is separated on "
-        + join_words(OUTCOME_PLURALS[o] for o in random_outcomes)
-        + " only."
-        if random_outcomes
-        else "It is not separated from random targeting either."
+    if not _separated_rankings(results):
+        best = max(RANKINGS, key=lambda r: _policy(results, r, "visit")["incremental_total"])
+        verdicts.append(
+            "The recency rule and the response model are not separated from each other "
+            f"either. {RANKING_PROSE[best].capitalize()} has the highest point estimate on "
+            "visits, but with no ranking separated from another the recommendation is the "
+            "simplest one, the recency rule. The analysis plan pre-registered no rule for "
+            "this choice."
+        )
+    visit_diffs, _ = _versus_random(results, "visit")
+    random_verdicts = join_words(
+        f"{_versus_random(results, outcome)[1]} on {OUTCOME_PLURALS[outcome]}"
+        for outcome in POLICY_OUTCOMES
+    )
+    random_line = (
+        "**Against random targeting** (the pre-registered draw), the paired differences in "
+        "visits are "
+        + join_words(f"{_signed_range(visit_diffs[r])} for {RANKING_PROSE[r]}" for r in RANKINGS)
+        + f": {random_verdicts}."
     )
 
     curve = pd.read_csv(reports_dir / pol["budget_curve_table"])
@@ -795,6 +923,7 @@ def policy(results: Results, reports_dir: Path) -> str:
             f"targeting send the A/B winner ({EMAIL_NAMES[winner]}).",
             "",
             f"- {' '.join(verdicts)}",
+            f"- {random_line}",
             f"- **Budget curve.** Extending each ranking to every budget in steps of "
             f"{num(step)}, the recency rule is at or above the uplift policy at "
             f"{counts['incremental_visits'][0]} of {counts['incremental_visits'][1]} budgets on "

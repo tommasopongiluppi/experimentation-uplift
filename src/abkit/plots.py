@@ -1268,37 +1268,6 @@ def _rank_correlation(deciles: pd.DataFrame) -> float:
     return float(stats.spearmanr(deciles["predicted"], deciles["observed"]).statistic)
 
 
-def plot_uplift_calibration(deciles: pd.DataFrame, path: Path, title: str = "") -> Path:
-    """Predicted vs observed uplift by decile of the predicted score, with bootstrap bars.
-
-    Parameters
-    ----------
-    deciles : pandas.DataFrame
-        ``deciles`` table of :class:`abkit.uplift.evaluation.BootstrapEvaluation`: columns
-        ``decile``, ``predicted``, ``observed``, ``boot_low``, ``boot_high``.
-    path : Path
-        Output PNG path.
-    title : str
-        Name of the pair being evaluated.
-
-    Returns
-    -------
-    Path
-        The path written.
-    """
-    rho = _rank_correlation(deciles)
-    prefix = f"{title}: " if title else ""
-    with styled():
-        fig, ax = new_figure((6.0, 5.4))
-        _draw_calibration(ax, deciles)
-        ax.legend(loc="upper left")
-        finish(
-            fig,
-            f"{prefix}observed uplift by decile has rank correlation {rho:.2f} with the prediction",
-        )
-    return save(fig, path)
-
-
 def plot_calibration_grid(deciles: dict[str, pd.DataFrame], path: Path, title: str = "") -> Path:
     """One calibration panel per learner, sharing both axes.
 
@@ -1308,7 +1277,8 @@ def plot_calibration_grid(deciles: dict[str, pd.DataFrame], path: Path, title: s
     Parameters
     ----------
     deciles : dict of str to pandas.DataFrame
-        Learner name to its ``deciles`` table (see :func:`plot_uplift_calibration`).
+        Learner name to its ``deciles`` table of
+        :class:`abkit.uplift.evaluation.BootstrapEvaluation`.
     path : Path
         Output PNG path.
     title : str

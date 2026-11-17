@@ -5637,6 +5637,246 @@
         "ci_high": -14956.515000000007,
         "meaningful": true,
         "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "nobody",
+        "outcome": "visit",
+        "diff_incremental_total": 822.0000000000001,
+        "ci_low": 645.0000000000005,
+        "ci_high": 990.0750000000002,
+        "meaningful": true,
+        "reference_better": true
+      },
+      {
+        "reference": "random",
+        "policy": "nobody",
+        "outcome": "conversion",
+        "diff_incremental_total": 27.000000000000025,
+        "ci_low": -12.00000000000001,
+        "ci_high": 66.0,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "nobody",
+        "outcome": "spend",
+        "diff_incremental_total": 7137.900000000009,
+        "ci_low": 1077.0847500000032,
+        "ci_high": 13720.823250000016,
+        "meaningful": true,
+        "reference_better": true
+      },
+      {
+        "reference": "random",
+        "policy": "all_mens",
+        "outcome": "visit",
+        "diff_incremental_total": -4074.000000000001,
+        "ci_low": -4509.075,
+        "ci_high": -3671.925,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "all_mens",
+        "outcome": "conversion",
+        "diff_incremental_total": -408.00000000000006,
+        "ci_low": -522.0,
+        "ci_high": -303.0,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "all_mens",
+        "outcome": "spend",
+        "diff_incremental_total": -42072.180000000015,
+        "ci_low": -59478.70950000005,
+        "ci_high": -26411.044500000058,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "all_womens",
+        "outcome": "visit",
+        "diff_incremental_total": -2106.000000000001,
+        "ci_low": -2547.0000000000005,
+        "ci_high": -1668.000000000001,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "all_womens",
+        "outcome": "conversion",
+        "diff_incremental_total": -173.99999999999991,
+        "ci_low": -279.0,
+        "ci_high": -66.0,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "all_womens",
+        "outcome": "spend",
+        "diff_incremental_total": -20251.440000000017,
+        "ci_low": -37705.947,
+        "ci_high": -3232.1040000000157,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "recency_rule",
+        "outcome": "visit",
+        "diff_incremental_total": -57.00000000000034,
+        "ci_low": -291.07500000000033,
+        "ci_high": 176.99999999999955,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "recency_rule",
+        "outcome": "conversion",
+        "diff_incremental_total": -60.0,
+        "ci_low": -126.0,
+        "ci_high": -3.000000000000007,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "recency_rule",
+        "outcome": "spend",
+        "diff_incremental_total": -2544.9599999999955,
+        "ci_low": -12507.049499999997,
+        "ci_high": 6406.907249999986,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "response_model",
+        "outcome": "visit",
+        "diff_incremental_total": -225.00000000000057,
+        "ci_low": -492.15,
+        "ci_high": 32.99999999999943,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "response_model",
+        "outcome": "conversion",
+        "diff_incremental_total": -89.99999999999997,
+        "ci_low": -158.99999999999997,
+        "ci_high": -23.925000000000033,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "response_model",
+        "outcome": "spend",
+        "diff_incremental_total": -5560.170000000007,
+        "ci_low": -15724.992000000022,
+        "ci_high": 5329.846499999996,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "uplift",
+        "outcome": "visit",
+        "diff_incremental_total": -30.000000000000227,
+        "ci_low": -285.0750000000002,
+        "ci_high": 237.07500000000005,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "uplift",
+        "outcome": "conversion",
+        "diff_incremental_total": -69.0,
+        "ci_low": -129.075,
+        "ci_high": -5.999999999999999,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "uplift",
+        "outcome": "spend",
+        "diff_incremental_total": -7564.410000000009,
+        "ci_low": -18209.492250000007,
+        "ci_high": 2729.1352499999944,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "uplift_mens_default",
+        "outcome": "visit",
+        "diff_incremental_total": 72.00000000000011,
+        "ci_low": -176.9999999999997,
+        "ci_high": 333.0000000000001,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "uplift_mens_default",
+        "outcome": "conversion",
+        "diff_incremental_total": -60.0,
+        "ci_low": -117.07500000000005,
+        "ci_high": -3.0,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "uplift_mens_default",
+        "outcome": "spend",
+        "diff_incremental_total": -502.1100000000097,
+        "ci_low": -9078.591000000013,
+        "ci_high": 8327.314499999991,
+        "meaningful": false,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "suppression",
+        "outcome": "visit",
+        "diff_incremental_total": -3423.000000000001,
+        "ci_low": -3804.0750000000007,
+        "ci_high": -3020.775000000001,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "suppression",
+        "outcome": "conversion",
+        "diff_incremental_total": -314.99999999999994,
+        "ci_low": -420.0,
+        "ci_high": -210.00000000000003,
+        "meaningful": true,
+        "reference_better": false
+      },
+      {
+        "reference": "random",
+        "policy": "suppression",
+        "outcome": "spend",
+        "diff_incremental_total": -33706.76999999999,
+        "ci_low": -51259.419,
+        "ci_high": -18015.300750000035,
+        "meaningful": true,
+        "reference_better": false
       }
     ]
   },

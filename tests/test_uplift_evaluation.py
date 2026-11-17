@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from abkit.frequentist import diff_in_proportions
-from abkit.plots import plot_uplift_calibration
+from abkit.plots import plot_calibration_grid
 from abkit.uplift.evaluation import (
     assign_bins,
     auuc,
@@ -245,10 +245,10 @@ def test_bootstrap_interval_coverage(rng):
 # --- plots -----------------------------------------------------------------------------------
 
 
-def test_calibration_plot_writes_png(rng, tmp_path):
+def test_calibration_grid_writes_png(rng, tmp_path):
     tau, t, y = _synthetic(rng, 500)
     boot = bootstrap_evaluation(tau, t, y, rng, n_resamples=20)
-    path = plot_uplift_calibration(boot.deciles, tmp_path / "calibration.png")
+    path = plot_calibration_grid({"x_learner": boot.deciles}, tmp_path / "calibration.png")
     assert path.stat().st_size > 0
 
 

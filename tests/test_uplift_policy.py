@@ -227,8 +227,17 @@ def test_evaluate_policies_tables(rng):
     )
     assert table.loc[table["outcome"] == "visit", "net_value"].isna().all()
     assert (table.loc[table["policy"].isin(EXPLORATORY), "exploratory"]).all()
-    assert set(comparison["reference"]) == {"uplift", "recency_rule"}
-    assert len(comparison) == 2 * (len(POLICIES) - 1) * 3
+    assert set(comparison["reference"]) == {"uplift", "recency_rule", "random"}
+    assert len(comparison) == 3 * (len(POLICIES) - 1) * 3
+    # The same pair seen from either side is the same difference with the sign reversed.
+    ref, other = comparison["reference"], comparison["policy"]
+    forward = comparison[(ref == "uplift") & (other == "random")]
+    backward = comparison[(ref == "random") & (other == "uplift")]
+    np.testing.assert_allclose(
+        forward["diff_incremental_total"], -backward["diff_incremental_total"].to_numpy()
+    )
+    np.testing.assert_allclose(forward["ci_low"], -backward["ci_high"].to_numpy())
+    assert (forward["meaningful"].to_numpy() == backward["meaningful"].to_numpy()).all()
     assert comparison["meaningful"].dtype == bool
     assert len(suppressed) == 3 and (suppressed["n_suppressed"] == 500).all()
 

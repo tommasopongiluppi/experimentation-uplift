@@ -24,6 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5"]
 crosscheck = ["scikit-uplift>=0.5"]
+notebook = ["nbclient>=0.10", "ipykernel>=6.29"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
