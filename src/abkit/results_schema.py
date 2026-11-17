@@ -353,6 +353,11 @@ SCHEMA: dict[str, dict[str, Field]] = {
         "note": _f("str", "What the spread adds to the bootstrap intervals."),
         "n_seeds": _f("int", "Seeds including the committed one."),
         "spread": _f("list[dict]", "Median, min and max of each metric across seeds."),
+        "beats_random_expectation": _f(
+            "dict",
+            "Policy -> outcome -> in how many seeds its interval against the random "
+            "expectation lies above zero (robustness reporting; not an input of the rule).",
+        ),
         "x_beats_response_model_womens": _f(
             "dict", "In how many seeds the X-learner beats the response model on the womens pair."
         ),

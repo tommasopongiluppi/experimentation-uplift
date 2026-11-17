@@ -23,7 +23,8 @@ that produces every number below.
 Holm is the correction across the 2 primary tests (each email against no email on spend); Benjamini-Hochberg is the correction across the 7 secondary tests (every other comparison of spend, conversion and visits). Intervals are unadjusted.
 
 - **Value.** Sent to all 64,000 customers, the Mens email brings about \$49,000 of extra revenue in two weeks (\$32,000 to \$67,000). Profit cannot be computed: the data hold no cost or margin.
-- **Targeting under a budget, and whom not to email: under revision.** The targeting results were corrected after an independent review (analysis plan D11 to D13). The corrected numbers and the decision rule applied to them are in [Who to email](#5-who-to-email); this summary will be rewritten from them.
+- **If only 10,000 emails can be sent.** Three rankings were tested: an uplift model, a response model predicting who visits, and the 10,000 most recent purchasers. The decision rule fixed before the corrected results were computed (deviation D10) picks the uplift model, the only ranking that beats random targeting on spend: +\$9,107 (\$323 to \$17,973). The evidence is thin: the lower bound is near zero, it is one of six unadjusted comparisons, it does not beat random targeting on visits (the outcome it was trained on), it is not separated from the other two rankings and it qualifies on spend in 1 of 10 fold seeds. Before relying on it, test it directly: a new randomised test of uplift model targeting against the recency rule.
+- **Whom not to email.** Nobody identified: the 10,000 customers the model ranks lowest still visit more when emailed, +7.0 pp (5.2 to 9.0 pp).
 <!-- /RESULTS:summary -->
 
 The analysis plan was written and committed before any outcome was compared between arms
@@ -181,8 +182,19 @@ Normalised Qini coefficient on visits, out of fold, with 95% bootstrap intervals
 - **Womens email.** The S-learner ranks best, ahead of the random order, recency rule and response model by a paired bootstrap difference, and is not separated from the T-learner and X-learner.
 - **Mens email.** The response model ranks best, ahead of the random order, S-learner and X-learner by a paired bootstrap difference, and is not separated from the recency rule and T-learner. No uplift learner beats the baselines: the email's effect on visits is close to the same for everyone, so there is little to rank.
 - **Stability.** Repeating the cross-fitting under 10 fold seeds, the X-learner's coefficient on the Womens pair has median 0.061 (range 0.056 to 0.064) and is above the response model in 10 of 10 seeds.
-- **Policy value across fold seeds.** Incremental visits at the 10,000 budget over the same 10 seeds: uplift policy 807 in the committed seed, median 882, range 771 to 909; response model 954 in the committed seed, median 984, range 942 to 1,077. The bootstrap intervals hold the folds fixed, so this spread comes on top of them; read the median as the central value.
-- **The choice of the X-learner for the policy is post hoc (deviation D8).** It was picked from three learners after an earlier evaluation on the same data, which the correction of deviation D11 has since replaced; the choice was not revisited, so that the policy is not selected a second time on the corrected results. Read "chosen", not "shown to be better": in the table above it is not the top-ranked learner on the Womens pair, and it is not separated from the other learners that rank near it.
+
+**Policy values across fold seeds** (10,000 emails, 10 seeds). The bootstrap intervals in the next section hold the folds fixed, so this spread comes on top of them. The last column counts the seeds in which the policy's interval against the random expectation lies above zero; it is reported for robustness and does not feed the decision rule, which uses the committed seed.
+
+| Policy and outcome | Committed seed | Median | Range | Seeds beating the random expectation |
+|---|---|---|---|---|
+| Uplift model, incremental visits | 807 | 882 | 771 to 909 | 0 of 10 |
+| Uplift model, incremental conversions | 129 | 96 | 81 to 132 | not computed |
+| Uplift model, incremental spend | \$16,806 | \$12,093 | \$7,864 to \$16,806 | 1 of 10 |
+| Response model, incremental visits | 954 | 984 | 942 to 1,077 | 6 of 10 |
+| Response model, incremental conversions | 99 | 105 | 75 to 144 | not computed |
+| Response model, incremental spend | \$9,373 | \$10,514 | \$7,912 to \$15,582 | 0 of 10 |
+
+- **The choice of the X-learner for the policy is post hoc (deviation D8).** It was picked from three learners after an earlier evaluation on the same data, which the correction of deviation D11 has since replaced; the choice was not revisited, so that the policy is not selected a second time on the corrected results. Read "chosen", not "shown to be better": in the Qini table it is not the top-ranked learner on the Womens pair, and it is not separated from the other learners that rank near it.
 <!-- /RESULTS:uplift_models -->
 
 ### The budgeted policy

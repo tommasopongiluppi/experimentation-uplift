@@ -55,6 +55,8 @@ ARM_COUNT_GROUPS: dict[str, str] = {
     "random": "Random draw (no model)",
 }
 RANKINGS: tuple[str, ...] = ("uplift", "response_model", "recency_rule")
+#: Outcomes on which a ranking can qualify under the decision rule (analysis plan D10).
+DECISION_OUTCOMES: tuple[str, ...] = ("spend", "visit")
 RANKING_PROSE: dict[str, str] = {
     "uplift": "the uplift policy",
     "response_model": "the response model",
@@ -315,6 +317,7 @@ def summary(results: Results) -> str:
     )
     everyone = _policy(results, f"all_{winner}", "spend")
     thousands = [round(everyone[k], -3) for k in ("incremental_total", "ci_low", "ci_high")]
+    suppressed = find(policy["suppressed_group"], outcome="visit")
     return "\n".join(
         [
             f"**Decision: send the {name} email, to everyone who can be emailed.** {lead} "
@@ -338,11 +341,98 @@ def summary(results: Results) -> str:
             f"brings about {usd(thousands[0], 0)} of extra revenue in two weeks "
             f"({usd_range(thousands[1], thousands[2], 0)}). Profit cannot be computed: the "
             "data hold no cost or margin.",
-            "- **Targeting under a budget, and whom not to email: under revision.** The "
-            "targeting results were corrected after an independent review (analysis plan D11 "
-            "to D13). The corrected numbers and the decision rule applied to them are in "
-            "[Who to email](#5-who-to-email); this summary will be rewritten from them.",
+            _targeting_summary(results),
+            "- **Whom not to email.** "
+            + (
+                f"Nobody identified: the {num(suppressed['n_suppressed'])} customers the model "
+                "ranks lowest still visit more when emailed, "
+                f"{pp(suppressed['uplift_per_customer'], signed=True)} "
+                f"({pp_range(suppressed['ci_low'], suppressed['ci_high'])})."
+                if suppressed["ci_low"] > 0
+                else f"The {num(suppressed['n_suppressed'])} customers the model ranks lowest "
+                "show no clear gain from an email: "
+                f"{pp(suppressed['uplift_per_customer'], signed=True)} "
+                f"({pp_range(suppressed['ci_low'], suppressed['ci_high'])})."
+            ),
         ]
+    )
+
+
+NUMBER_WORDS: dict[int, str] = {2: "two", 3: "three", 4: "four", 6: "six", 8: "eight", 9: "nine"}
+
+
+def _targeting_summary(results: Results) -> str:
+    """Write the one first-screen statement of what to do with a limited budget.
+
+    The recommendation is the decision rule's (analysis plan D10), read from
+    ``results.json``; the caveats listed after it are each included only when the results
+    show them.
+    """
+    pol = results["policy"]
+    budget = num(pol["budget"])
+    lead = (
+        f"- **If only {budget} emails can be sent.** Three rankings were tested: an uplift "
+        f"model, a response model predicting who visits, and the {budget} most recent "
+        "purchasers. "
+    )
+    rec = pol["recommendation"]
+    chosen = rec["recommended"]
+    if chosen is None:
+        return (
+            lead + "By the decision rule fixed before the corrected results were computed "
+            "(deviation D10), none is recommended: none beats random targeting on spend or "
+            f"on visits. Targeting is not shown to add value at this budget; any of the "
+            f"three, or a random {budget} customers, is defensible."
+        )
+    label = RANKING_LABELS[chosen]
+    outcome = rec["qualifying"][chosen][0]
+    fmt = OUTCOME_FORMATS[outcome]
+    gain = _vs_expected(results, chosen, outcome)
+    only = len(rec["qualifying"]) == 1
+    sign = "+" if gain["diff"] > 0 else ""
+    text = (
+        lead + "The decision rule fixed before the corrected results were computed (deviation "
+        f"D10) picks the {label}, "
+        + ("the only ranking that beats" if only else "the simplest unseparated ranking to beat")
+        + f" random targeting on {OUTCOME_PLURALS[outcome]}: {sign}{_signed(gain['diff'], fmt)} "
+        f"({_signed(gain['ci_low'], fmt)} to {_signed(gain['ci_high'], fmt)})"
+    )
+    caveats = []
+    if gain["ci_low"] < 0.1 * gain["diff"]:
+        caveats.append("the lower bound is near zero")
+    n_comparisons = len(RANKING_LABELS) * len(DECISION_OUTCOMES)
+    caveats.append(
+        f"it is one of {NUMBER_WORDS.get(n_comparisons, str(n_comparisons))} unadjusted comparisons"
+    )
+    trained_on = pol["learner_outcome"]
+    if (
+        chosen != "recency_rule"
+        and outcome != trained_on
+        and not _vs_expected(results, chosen, trained_on)["policy_better"]
+    ):
+        caveats.append(
+            f"it does not beat random targeting on {OUTCOME_PLURALS[trained_on]} (the outcome "
+            "it was trained on)"
+        )
+    if not any(chosen in (a, b) for a, b, _ in _separated_rankings(results)):
+        caveats.append("it is not separated from the other two rankings")
+    seeds = (results.get("seed_robustness") or {}).get("beats_random_expectation", {})
+    count = seeds.get(chosen, {}).get(outcome)
+    stable = ""
+    if count and count["out_of"]:
+        if count["count"] < count["out_of"]:
+            caveats.append(
+                f"it qualifies on {OUTCOME_PLURALS[outcome]} in {count['count']} of "
+                f"{count['out_of']} fold seeds"
+            )
+        else:
+            stable = (
+                f" It qualifies on {OUTCOME_PLURALS[outcome]} in all {count['out_of']} fold seeds."
+            )
+    rival = "random targeting" if chosen == "recency_rule" else "the recency rule"
+    return (
+        f"{text}. The evidence is thin: {join_words(caveats)}.{stable} Before relying on it, "
+        f"test it directly: a new randomised test of {label} targeting against {rival}."
     )
 
 
@@ -821,26 +911,48 @@ def uplift_models(results: Results) -> str:
             f"(range {x['min']:.3f} to {x['max']:.3f}) and is above the response model in "
             f"{beats['count']} of {beats['out_of']} seeds."
         )
-        seeds = []
-        for ranking, label in (("uplift", "uplift policy"), ("response_model", "response model")):
-            matches = [
-                s
-                for s in robustness["spread"]
-                if s["ranking"] == ranking and s["metric"].endswith("policy_incremental_visits")
-            ]
-            if matches:
-                s = matches[0]
-                seeds.append(
-                    f"{label} {num(s['seed_0'])} in the committed seed, median "
-                    f"{num(s['median'])}, range {num(s['min'])} to {num(s['max'])}"
+        seed_rows = []
+        spread = {(s["ranking"], s["metric"]): s for s in robustness["spread"]}
+        beats = robustness.get("beats_random_expectation", {})
+        for ranking, label in (("uplift", "Uplift model"), ("response_model", "Response model")):
+            for outcome in POLICY_OUTCOMES:
+                metric = f"{ranking}_policy_incremental_{OUTCOME_PLURALS[outcome]}"
+                s = spread.get((ranking, metric))
+                if s is None:
+                    continue
+                fmt = OUTCOME_FORMATS[outcome]
+                count = beats.get(ranking, {}).get(outcome)
+                seed_rows.append(
+                    [
+                        f"{label}, incremental {OUTCOME_PLURALS[outcome]}",
+                        fmt(s["seed_0"]),
+                        fmt(s["median"]),
+                        f"{fmt(s['min'])} to {fmt(s['max'])}",
+                        f"{count['count']} of {count['out_of']}" if count else "not computed",
+                    ]
                 )
-        if seeds:
-            lines.append(
-                f"- **Policy value across fold seeds.** Incremental visits at the "
-                f"{num(robustness['budget'])} budget over the same {robustness['n_seeds']} "
-                f"seeds: {'; '.join(seeds)}. The bootstrap intervals hold the folds fixed, so "
-                "this spread comes on top of them; read the median as the central value."
-            )
+        if seed_rows:
+            lines += [
+                "",
+                f"**Policy values across fold seeds** ({num(robustness['budget'])} emails, "
+                f"{robustness['n_seeds']} seeds). The bootstrap intervals in the next section "
+                "hold the folds fixed, so this spread comes on top of them. The last column "
+                "counts the seeds in which the policy's interval against the random "
+                "expectation lies above zero; it is reported for robustness and does not "
+                "feed the decision rule, which uses the committed seed.",
+                "",
+                table(
+                    [
+                        "Policy and outcome",
+                        "Committed seed",
+                        "Median",
+                        "Range",
+                        "Seeds beating the random expectation",
+                    ],
+                    seed_rows,
+                ),
+                "",
+            ]
     lines.append(
         "- **The choice of the X-learner for the policy is post hoc (deviation D8).** It was "
         "picked from three learners after an earlier evaluation on the same data, which the "
@@ -848,9 +960,9 @@ def uplift_models(results: Results) -> str:
         "that the policy is not selected a second time on the corrected results. Read "
         '"chosen", not "shown to be better": '
         + (
-            "in the table above it is the top-ranked learner on the Womens pair"
+            "in the Qini table it is the top-ranked learner on the Womens pair"
             if models["summary"]["womens_visit"]["best_ranking"] == "x_learner"
-            else "in the table above it is not the top-ranked learner on the Womens pair"
+            else "in the Qini table it is not the top-ranked learner on the Womens pair"
         )
         + ", and it is not separated from the other learners that rank near it."
     )

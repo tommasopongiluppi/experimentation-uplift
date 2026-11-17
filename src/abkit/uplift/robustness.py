@@ -29,11 +29,14 @@ from abkit.uplift.crossfit import TreatmentPair, assign_folds, treatment_pair
 from abkit.uplift.evaluation import qini_coefficient
 from abkit.uplift.models import SCORES_NAME, load_customers, score_pair
 from abkit.uplift.policy import (
+    DECISION_OUTCOMES,
+    N_RESAMPLES,
     POLICY_OUTCOME,
     PolicyInputs,
     ab_winner,
     build_policies,
     policy_value,
+    versus_random_expectation,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,6 +54,30 @@ POLICY_METRICS: dict[str, str] = {
     "uplift": POLICY_METRIC,
     "response_model": RESPONSE_POLICY_METRIC,
 }
+#: Statistic name to the column of :func:`abkit.uplift.policy.versus_random_expectation`.
+VS_RANDOM_STATS: dict[str, str] = {
+    "diff": "diff",
+    "ci_low": "ci_low",
+    "ci_high": "ci_high",
+    "above_zero": "policy_better",
+}
+_OUTCOME_PLURALS: dict[str, str] = {
+    "visit": "visits",
+    "conversion": "conversions",
+    "spend": "spend",
+}
+
+
+def policy_metric(ranking: str, outcome: str) -> str:
+    """Name of a policy's incremental-outcome metric, e.g. ``uplift_policy_incremental_spend``."""
+    return f"{ranking}_policy_incremental_{_OUTCOME_PLURALS[outcome]}"
+
+
+def vs_random_metric(ranking: str, outcome: str, stat: str) -> str:
+    """Name of a statistic of a policy's difference from the random expectation."""
+    return f"{ranking}_policy_{outcome}_vs_random_{stat}"
+
+
 POLICY_ARM: str = "both"
 
 Scorer = Callable[[TreatmentPair, str, np.random.Generator], pd.DataFrame]
@@ -82,8 +109,16 @@ def seed_metrics(
     winner: str,
     seed: int,
     budget: int = config.BUDGET,
+    n_resamples: int = N_RESAMPLES,
 ) -> pd.DataFrame:
-    """Normalised Qini per learner and pair, and the uplift policy's incremental visits.
+    """Normalised Qini per learner and pair, and the model-based policies' values.
+
+    For the uplift policy and the response-model policy the table holds the incremental
+    visits, conversions and spend, and, on spend and on visits, the paired difference
+    against the exact expectation of random targeting with its bootstrap interval and
+    whether that interval lies above zero. The last item is robustness reporting: it shows
+    in how many seeds a ranking would qualify under the decision rule of analysis plan D10,
+    and does not feed the rule, which is applied to the committed seed only.
 
     Parameters
     ----------
@@ -98,6 +133,9 @@ def seed_metrics(
         Seed label for the rows.
     budget : int
         Email budget.
+    n_resamples : int
+        Bootstrap resamples of the comparison with the random expectation (seeded from
+        ``config.SEEDS["bootstrap"]``, so every seed sees the same resampled customers).
 
     Returns
     -------
@@ -127,19 +165,36 @@ def seed_metrics(
         pre=customers[list(config.PRE_TREATMENT_COLS)].reset_index(drop=True),
     )
     assignments, _ = build_policies(inputs, winner, np.random.default_rng(0), budget)
-    y = inputs.y[OUTCOME].to_numpy()
+    outcomes = list(config.OUTCOME_COLS)
+    y = inputs.y[outcomes].to_numpy()
     nobody, _ = policy_value(assignments["nobody"], inputs.arm, y)
-    for ranking, metric in POLICY_METRICS.items():
-        value, _ = policy_value(assignments[ranking], inputs.arm, y)
+    vs_random = versus_random_expectation(
+        inputs,
+        {name: assignments[name] for name in POLICY_METRICS},
+        winner,
+        np.random.default_rng(config.SEEDS["bootstrap"]),
+        n_resamples,
+    ).set_index(["policy", "outcome"])
+
+    def add(ranking: str, metric: str, value: float) -> None:
         rows.append(
             {
                 "seed": seed,
                 "arm": POLICY_ARM,
                 "ranking": ranking,
                 "metric": metric,
-                "value": float(inputs.n * (value[0] - nobody[0])),
+                "value": float(value),
             }
         )
+
+    for ranking in POLICY_METRICS:
+        value, _ = policy_value(assignments[ranking], inputs.arm, y)
+        for j, outcome in enumerate(outcomes):
+            add(ranking, policy_metric(ranking, outcome), inputs.n * (value[j] - nobody[j]))
+        for outcome in DECISION_OUTCOMES:
+            row = vs_random.loc[(ranking, outcome)]
+            for stat, column in VS_RANDOM_STATS.items():
+                add(ranking, vs_random_metric(ranking, outcome, stat), row[column])
     return pd.DataFrame(rows)
 
 
@@ -154,7 +209,9 @@ def summarise(table: pd.DataFrame) -> dict[str, Any]:
     Returns
     -------
     dict
-        ``spread`` rows, ``x_beats_response_model_womens`` (count and seeds) and
+        ``spread`` rows, ``beats_random_expectation`` (per policy and outcome, in how many
+        seeds the interval against the random expectation lies above zero),
+        ``x_beats_response_model_womens`` (count and seeds) and
         ``n_seeds``.
     """
     spread = (
@@ -167,6 +224,17 @@ def summarise(table: pd.DataFrame) -> dict[str, Any]:
         float(seed0.get((a, r, m), np.nan))
         for a, r, m in zip(spread["arm"], spread["ranking"], spread["metric"], strict=True)
     ]
+    qualifying: dict[str, dict[str, Any]] = {}
+    for ranking in POLICY_METRICS:
+        qualifying[ranking] = {}
+        for outcome in DECISION_OUTCOMES:
+            rows = table[table["metric"] == vs_random_metric(ranking, outcome, "above_zero")]
+            above = rows.set_index("seed")["value"] > 0
+            qualifying[ranking][outcome] = {
+                "count": int(above.sum()),
+                "out_of": int(above.size),
+                "seeds": [int(s) for s in above.index[above]],
+            }
     womens = table[(table["arm"] == "womens") & (table["metric"] == QINI_METRIC)].pivot_table(
         index="seed", columns="ranking", values="value"
     )
@@ -174,6 +242,7 @@ def summarise(table: pd.DataFrame) -> dict[str, Any]:
     return {
         "n_seeds": int(table["seed"].nunique()),
         "spread": json_records(spread),
+        "beats_random_expectation": qualifying,
         "x_beats_response_model_womens": {
             "count": int(wins.sum()),
             "out_of": int(wins.size),
@@ -190,6 +259,7 @@ def run_seed_robustness(
     budget: int = config.BUDGET,
     winner: str | None = None,
     scorer: Scorer = score_pair,
+    n_resamples: int = N_RESAMPLES,
 ) -> pd.DataFrame:
     """Repeat the visit cross-fitting over fold seeds and write the table and results section.
 
@@ -210,6 +280,8 @@ def run_seed_robustness(
     scorer : callable
         ``scorer(pair, outcome, rng)`` producing a :func:`score_pair` table (tests inject a
         fast stand-in).
+    n_resamples : int
+        Bootstrap resamples of each seed's comparison with the random expectation.
 
     Returns
     -------
@@ -231,6 +303,7 @@ def run_seed_robustness(
             winner,
             seed=0,
             budget=budget,
+            n_resamples=n_resamples,
         )
     ]
     for k, rng in enumerate(fold_seed_generators(n_seeds), start=1):
@@ -238,7 +311,9 @@ def run_seed_robustness(
         folds = assign_folds(customers, rng)  # one assignment of all customers per seed
         pairs = {arm: treatment_pair(customers, arm, folds) for arm in config.TREATMENTS}
         scores = {arm: scorer(pairs[arm], OUTCOME, rng) for arm in config.TREATMENTS}
-        tables.append(seed_metrics(scores, customers, winner, seed=k, budget=budget))
+        tables.append(
+            seed_metrics(scores, customers, winner, seed=k, budget=budget, n_resamples=n_resamples)
+        )
     table = pd.concat(tables, ignore_index=True)
     write_table(table, TABLE_NAME, reports_dir / "tables")
     summary = summarise(table)

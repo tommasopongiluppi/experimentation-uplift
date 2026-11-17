@@ -317,6 +317,7 @@ file or from the CSV tables it names.
 | `note` | `str` | What the spread adds to the bootstrap intervals. |
 | `n_seeds` | `int` | Seeds including the committed one. |
 | `spread` | `list[dict]` | Median, min and max of each metric across seeds. |
+| `beats_random_expectation` | `dict` | Policy -> outcome -> in how many seeds its interval against the random expectation lies above zero (robustness reporting; not an input of the rule). |
 | `x_beats_response_model_womens` | `dict` | In how many seeds the X-learner beats the response model on the womens pair. |
 | `table` | `path` | Path of the CSV behind this section, relative to the reports directory. |
 | `rows` | `list[dict]` | One record per row of the table named by ``table``, with the same columns. |

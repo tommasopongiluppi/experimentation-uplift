@@ -364,6 +364,7 @@ def _run_robustness(s: Settings) -> None:
         n_seeds=s.sizes["robustness_seeds"],
         budget=_log_budget(s),
         scorer=functools.partial(score_pair, grid=s.grid),
+        n_resamples=s.sizes["policy_resamples"],
     )
 
 
@@ -649,6 +650,7 @@ STAGES: dict[str, Stage] = {
             modules=ROBUSTNESS_MODULES,
             params=lambda s: {
                 "n_seeds": s.sizes["robustness_seeds"],
+                "n_resamples": s.sizes["policy_resamples"],
                 "budget": budget_for(s),
                 "grid": list(s.grid),
                 "seed": _SEEDS["uplift"],

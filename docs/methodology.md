@@ -1317,9 +1317,15 @@ real learners on the fixture.
 they leave out the variability from the fold assignment and the model seeds. The spread
 across seeds measures that part. The committed seed is one draw from it; the median across
 seeds is the better central estimate of a model-based policy's value, and the range the
-honest spread. The stage records the incremental visits of the uplift policy and of the
-response-model policy under every seed. The results are in the README, generated from the
-`seed_robustness` section of `results.json`.
+honest spread. For the uplift policy and the response-model policy the stage records,
+under every seed, the incremental visits, conversions and spend at the budget and, on
+spend and on visits, the paired difference against the exact expectation of random
+targeting with its bootstrap interval (the same resampled customers for every seed) and
+whether that interval lies above zero. The count of seeds in which it does shows how much
+a "beats random targeting" verdict depends on the fold assignment. It is robustness
+reporting only: the decision rule of analysis plan D10 is applied to the committed seed
+and does not use it. The results are in the README, generated from the `seed_robustness`
+section of `results.json`.
 
 ## Pipeline: stages, cache and fast mode
 

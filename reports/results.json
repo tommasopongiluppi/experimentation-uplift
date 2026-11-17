@@ -7673,6 +7673,106 @@
       },
       {
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "median": 96.00000000000003,
+        "min": 81.00000000000001,
+        "max": 132.0,
+        "n_seeds": 10,
+        "seed_0": 129.0
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "median": 12092.579999999994,
+        "min": 7864.439999999995,
+        "max": 16805.610000000008,
+        "n_seeds": 10,
+        "seed_0": 16805.610000000008
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "median": 4394.30844105463,
+        "min": 166.16844105464497,
+        "max": 9107.33844105465,
+        "n_seeds": 10,
+        "seed_0": 9107.33844105465
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "median": -3105.0206335944745,
+        "min": -7650.560641702135,
+        "max": 323.11144383219545,
+        "n_seeds": 10,
+        "seed_0": 323.11144383219545
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "median": 12095.497688678279,
+        "min": 8254.744820293787,
+        "max": 17973.38846295116,
+        "n_seeds": 10,
+        "seed_0": 17973.38846295116
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "median": 0.0,
+        "min": 0.0,
+        "max": 1.0,
+        "n_seeds": 10,
+        "seed_0": 1.0
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "median": 116.1043634846875,
+        "min": 5.104363484687497,
+        "max": 143.1043634846875,
+        "n_seeds": 10,
+        "seed_0": 41.1043634846875
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "median": -81.29763196799365,
+        "min": -186.16282268954748,
+        "max": -59.36809820114923,
+        "n_seeds": 10,
+        "seed_0": -163.26232341103977
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "median": 311.6262063152585,
+        "min": 225.32682363152458,
+        "max": 351.97025814910535,
+        "n_seeds": 10,
+        "seed_0": 231.7980864259719
+      },
+      {
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n_seeds": 10,
+        "seed_0": 0.0
+      },
+      {
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "median": 984.0,
@@ -7680,8 +7780,143 @@
         "max": 1077.000000000001,
         "n_seeds": 10,
         "seed_0": 954.0000000000007
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "median": 105.0,
+        "min": 75.00000000000001,
+        "max": 144.00000000000003,
+        "n_seeds": 10,
+        "seed_0": 99.00000000000003
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "median": 10513.829999999998,
+        "min": 7912.290000000027,
+        "max": 15581.820000000014,
+        "n_seeds": 10,
+        "seed_0": 9373.470000000027
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "median": 2815.558441054637,
+        "min": 214.01844105466535,
+        "max": 7883.54844105465,
+        "n_seeds": 10,
+        "seed_0": 1675.198441054651
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "median": -5102.073503532637,
+        "min": -7895.291215791193,
+        "max": -384.10402563313653,
+        "n_seeds": 10,
+        "seed_0": -6309.283041024758
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "median": 10815.380823318523,
+        "min": 7866.352157952706,
+        "max": 16320.765155759904,
+        "n_seeds": 10,
+        "seed_0": 9608.212826180375
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n_seeds": 10,
+        "seed_0": 0.0
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "median": 218.1043634846875,
+        "min": 176.1043634846875,
+        "max": 311.1043634846875,
+        "n_seeds": 10,
+        "seed_0": 188.1043634846875
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "median": 13.047321107770284,
+        "min": -41.60703342900941,
+        "max": 106.05863531603704,
+        "n_seeds": 10,
+        "seed_0": -25.19282086124849
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "median": 426.68207285854226,
+        "min": 386.5447260732222,
+        "max": 539.9930489058829,
+        "n_seeds": 10,
+        "seed_0": 409.19183816053965
+      },
+      {
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "median": 1.0,
+        "min": 0.0,
+        "max": 1.0,
+        "n_seeds": 10,
+        "seed_0": 0.0
       }
     ],
+    "beats_random_expectation": {
+      "uplift": {
+        "spend": {
+          "count": 1,
+          "out_of": 10,
+          "seeds": [
+            0
+          ]
+        },
+        "visit": {
+          "count": 0,
+          "out_of": 10,
+          "seeds": []
+        }
+      },
+      "response_model": {
+        "spend": {
+          "count": 0,
+          "out_of": 10,
+          "seeds": []
+        },
+        "visit": {
+          "count": 6,
+          "out_of": 10,
+          "seeds": [
+            1,
+            2,
+            3,
+            5,
+            6,
+            7
+          ]
+        }
+      }
+    },
     "x_beats_response_model_womens": {
       "count": 10,
       "out_of": 10,
@@ -7766,9 +8001,149 @@
       {
         "seed": 0,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 129.0
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 16805.610000000008
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 9107.33844105465
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": 323.11144383219545
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 17973.38846295116
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 1.0
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 41.1043634846875
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -163.26232341103977
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 231.7980864259719
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 0,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 954.0000000000007
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 99.00000000000003
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 9373.470000000027
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 1675.198441054651
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -6309.283041024758
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 9608.212826180375
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 188.1043634846875
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": -25.19282086124849
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 409.19183816053965
+      },
+      {
+        "seed": 0,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 0.0
       },
       {
         "seed": 1,
@@ -7836,9 +8211,149 @@
       {
         "seed": 1,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 96.00000000000003
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 10879.64999999999
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 3181.378441054637
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -4891.454059202595
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 11784.384040585857
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 116.1043634846875
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -81.82553217185894
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 307.99448509969994
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 1,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 984.0
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 93.00000000000003
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 9961.050000000007
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 2262.7784410546383
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -5558.822211205296
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 10554.310216420612
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 218.1043634846875
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": 10.743263613811791
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 428.3932785289282
+      },
+      {
+        "seed": 1,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 1.0
       },
       {
         "seed": 2,
@@ -7906,9 +8421,149 @@
       {
         "seed": 2,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 96.00000000000003
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 12535.229999999998
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 4836.958441054631
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -3266.464000949204
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 12406.611336770702
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 131.1043634846875
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -65.71873948743091
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 333.77069321037857
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 2,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 996.0000000000005
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 135.0
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 10102.95
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 2404.6784410546397
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -5687.867528558922
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 10061.78757192711
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 230.1043634846875
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": 19.055451589234934
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 447.01106934790056
+      },
+      {
+        "seed": 2,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 1.0
       },
       {
         "seed": 3,
@@ -7976,9 +8631,149 @@
       {
         "seed": 3,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 90.00000000000003
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 11649.929999999991
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 3951.6584410546284
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -2943.577266239745
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 11381.70782347846
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 5.104363484687497
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -186.16282268954748
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 225.32682363152458
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 3,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 1071.0000000000007
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 117.0
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 12543.84000000001
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 4845.568441054646
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -3432.7658436732218
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 12848.470615238763
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 305.1043634846875
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": 102.50333751146016
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 523.843623728623
+      },
+      {
+        "seed": 3,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 1.0
       },
       {
         "seed": 4,
@@ -8046,9 +8841,149 @@
       {
         "seed": 4,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 102.00000000000003
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 13099.530000000008
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 5401.258441054649
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -2339.154107522001
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 14104.791912175251
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 125.1043634846875
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -65.41668843722185
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 345.5648767998208
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 4,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 966.0000000000002
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 102.00000000000003
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 10924.709999999997
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 3226.4384410546345
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -4645.324795859978
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 11076.451430216435
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 200.1043634846875
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": -10.624143700045147
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 424.9708671881564
+      },
+      {
+        "seed": 4,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 0.0
       },
       {
         "seed": 5,
@@ -8116,9 +9051,149 @@
       {
         "seed": 5,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 84.00000000000001
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 7864.439999999995
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 166.16844105464497
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -7650.560641702135
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 8254.744820293787
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 119.1043634846875
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -80.76973176412837
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 308.1264003134303
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 5,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 1008.0
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 144.00000000000003
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 15544.14000000002
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 7845.868441054657
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -497.9723878022836
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 15703.78880431746
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 242.1043634846875
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": 41.49852629717671
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 466.7884867936668
+      },
+      {
+        "seed": 5,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 1.0
       },
       {
         "seed": 6,
@@ -8186,9 +9261,149 @@
       {
         "seed": 6,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 132.0
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 14615.880000000025
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 6917.608441054655
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -638.6979528164173
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 15823.92625740148
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 113.1043634846875
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -79.06688539715373
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 315.1260123170868
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 6,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 984.0
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 126.0
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 13292.73000000002
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 5594.458441054653
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -2442.7918916321373
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 13393.799537727957
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 218.1043634846875
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": 15.351378601728776
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 424.8306857901697
+      },
+      {
+        "seed": 6,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 1.0
       },
       {
         "seed": 7,
@@ -8256,9 +9471,149 @@
       {
         "seed": 7,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 81.00000000000001
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 10018.29
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 2320.018441054629
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -5483.3096017643975
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 10189.96248357454
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 44.1043634846875
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -154.76545120447395
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 252.07240737270524
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 7,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 1077.000000000001
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 107.99999999999999
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 15581.820000000014
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 7883.54844105465
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -384.10402563313653
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 16320.765155759904
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 311.1043634846875
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": 106.05863531603704
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 539.9930489058829
+      },
+      {
+        "seed": 7,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 1.0
       },
       {
         "seed": 8,
@@ -8326,9 +9681,149 @@
       {
         "seed": 8,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 113.99999999999999
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 14012.67000000003
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 6314.398441054655
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -972.0840453634958
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 14428.650332063533
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 143.1043634846875
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -59.36809820114923
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 351.97025814910535
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 8,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 954.0000000000007
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 75.00000000000001
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 7922.880000000021
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 224.60844105465458
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -7583.640271939523
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 8082.938062046007
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 188.1043634846875
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": -9.602095522806238
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 418.3324000976076
+      },
+      {
+        "seed": 8,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 0.0
       },
       {
         "seed": 9,
@@ -8396,9 +9891,149 @@
       {
         "seed": 9,
         "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_conversions",
+        "value": 93.00000000000003
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_incremental_spend",
+        "value": 10384.500000000004
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_diff",
+        "value": 2686.228441054657
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_low",
+        "value": -6316.915943987959
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_ci_high",
+        "value": 11289.191940648065
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_diff",
+        "value": 116.1043634846875
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_low",
+        "value": -86.62734294896984
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_ci_high",
+        "value": 331.42679619153716
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "uplift",
+        "metric": "uplift_policy_visit_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 9,
+        "arm": "both",
         "ranking": "response_model",
         "metric": "response_model_policy_incremental_visits",
         "value": 942.0000000000002
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_conversions",
+        "value": 102.00000000000003
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_incremental_spend",
+        "value": 7912.290000000027
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_diff",
+        "value": 214.01844105466535
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_low",
+        "value": -7895.291215791193
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_ci_high",
+        "value": 7866.352157952706
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_spend_vs_random_above_zero",
+        "value": 0.0
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_diff",
+        "value": 176.1043634846875
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_low",
+        "value": -41.60703342900941
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_ci_high",
+        "value": 386.5447260732222
+      },
+      {
+        "seed": 9,
+        "arm": "both",
+        "ranking": "response_model",
+        "metric": "response_model_policy_visit_vs_random_above_zero",
+        "value": 0.0
       }
     ]
   },
