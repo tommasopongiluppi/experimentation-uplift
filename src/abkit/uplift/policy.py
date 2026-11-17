@@ -368,6 +368,7 @@ def build_policies(
         "best_tau": best_tau,
         "response_email": resp_email,
         "response_best": resp_best,
+        "recency_score": recency,
         "random_mask": random_mask,
     }
     return assignments, info
@@ -561,7 +562,11 @@ def budget_curve(
     step: int = BUDGET_STEP,
     cost_per_email: float = config.COST_PER_EMAIL,
 ) -> pd.DataFrame:
-    """Incremental visits and spend against the number emailed, for three rankings.
+    """Incremental visits and spend against the number emailed, for four rankings.
+
+    The uplift policy, the response model, the recency rule and random targeting are each
+    extended from the fixed budget to every budget on the grid: the ranking's first ``k``
+    customers are emailed. The recency rule and random targeting send the A/B winner.
 
     Parameters
     ----------
@@ -570,7 +575,7 @@ def budget_curve(
     info : dict
         From :func:`build_policies` (rankings and email choices).
     winner : str
-        Email sent by random targeting.
+        Email sent by the recency rule and by random targeting.
     step : int
         Budget grid step; the grid runs from 0 to the population in steps of ``step``.
     cost_per_email : float
@@ -588,6 +593,7 @@ def budget_curve(
     rankings = {
         "uplift": (info["best_tau"], info["best_email"]),
         "response_model": (info["response_best"], info["response_email"]),
+        "recency_rule": (info["recency_score"], np.full(n, winner)),
         "random": (info["random_order"], np.full(n, winner)),
     }
     grid = [*range(0, n, step), n]

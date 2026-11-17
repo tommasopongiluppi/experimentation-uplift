@@ -597,7 +597,7 @@ def rejections(
         some out changes nothing about the others.
     bayes_per_run : bool
         Evaluate the Bayesian rule for each run and look directly instead of through the
-        count boundary. Same rule; faster for a few thousand runs (the live simulator).
+        count boundary. Same rule; faster when there are only a few thousand runs.
 
     Returns
     -------

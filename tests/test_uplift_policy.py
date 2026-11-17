@@ -254,7 +254,25 @@ def test_budget_curve_endpoints(rng):
     _, info = build_policies(inputs, "womens", rng, 300)
     info["random_order"] = rng.random(inputs.n)
     curve = budget_curve(inputs, info, "womens", step=500, cost_per_email=0.1)
-    assert set(curve["policy"]) == {"uplift", "response_model", "random"}
+    assert set(curve["policy"]) == {"uplift", "response_model", "recency_rule", "random"}
+    # At the fixed budget each curve reproduces the policy of the same name: the recency rule
+    # emails exactly the customers build_policies gave it, and the first k of its ranking are
+    # the k most recent purchasers.
+    y = inputs.y[["visit", "spend"]].to_numpy()
+    nobody, _ = policy_value(np.full(inputs.n, "control"), inputs.arm, y)
+    order = np.argsort(-info["recency_score"], kind="stable")
+    recency = inputs.pre["recency"].to_numpy()
+    for k in (500, 1_000, 1_500):
+        assert recency[order[:k]].max() <= recency[order[k:]].min()
+        assignment = np.full(inputs.n, "control", dtype=object)
+        assignment[order[:k]] = "womens"
+        value, _ = policy_value(assignment.astype(str), inputs.arm, y)
+        row = curve[(curve["policy"] == "recency_rule") & (curve["n_emailed"] == k)].iloc[0]
+        assert row["incremental_visits"] == pytest.approx(inputs.n * (value - nobody)[0])
+        assert row["incremental_spend"] == pytest.approx(inputs.n * (value - nobody)[1])
+    # Every ranking ends at the same point only when it sends one email to everyone.
+    ends = curve[curve["n_emailed"] == inputs.n].set_index("policy")["incremental_visits"]
+    assert ends["recency_rule"] == pytest.approx(ends["random"])
     first = curve[curve["n_emailed"] == 0]
     assert (first[["incremental_visits", "incremental_spend"]] == 0).all().all()
     last = curve[(curve["policy"] == "random") & (curve["n_emailed"] == inputs.n)].iloc[0]

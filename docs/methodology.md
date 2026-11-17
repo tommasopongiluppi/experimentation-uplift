@@ -900,6 +900,10 @@ counts. The fixed-horizon power at a planted visit lift matches the closed form 
 z-test with unequal variances within three Monte Carlo standard errors. The pipeline test runs
 the whole study in a fast mode (fewer runs and paths) on the fixture and checks every table,
 figure and the results.json section; the full sizes are used only by the pipeline.
+`rejections` can also apply a chosen subset of the rules, and can evaluate the Bayesian rule
+for each run and look directly instead of through the count boundary; both are checked to
+give exactly the flags of the default route (the direct evaluation on four designs), and the
+pipeline uses the default route.
 
 ## Segment analysis (exploratory)
 
@@ -1218,10 +1222,29 @@ not here.
   positive, with an interval that excludes zero. Withholding their email costs visits. The
   honest answer to "whom should we not email" is that this experiment finds no such group.
 - The exploratory mens-by-default policy does not improve on the uplift policy.
-- The budget curve shows the same thing at every budget: on visits the three rankings are
-  close, with random targeting a little below the two models; on spend the uplift ranking
-  is nominally ahead at small budgets, within noise. The curves meet at 64,000 only up to
-  the choice of email, because each ranking sends its own choice.
+- The budget curve (`reports/tables/policy_budget_curve.csv`) extends four rankings from
+  the fixed budget to every budget: the uplift policy, the response model, the recency rule
+  and random targeting. It holds point estimates only, so it shows where the rankings sit,
+  not which differences are real; the paired bootstrap comparisons exist at the fixed
+  budget only. It shows the same thing at every budget:
+  - On visits the four rankings are close throughout. Up to about half the population the
+    response model is nominally the highest and random targeting the lowest; beyond that
+    the lines cross repeatedly and no ranking leads.
+  - **The recency rule tracks the uplift policy closely on visits and is nominally at or
+    above it at most budgets around the fixed budget, including the fixed budget itself.**
+    Across the whole grid the uplift policy is above the recency rule more often than not,
+    but by amounts no larger than the gaps between the other rankings.
+  - On spend the uplift policy is nominally ahead at small budgets (not the very smallest),
+    with the recency rule well below it there. At larger budgets the order reverses often,
+    and the recency rule is at or above the uplift policy at most budgets in the upper half
+    of the grid. The spend curves are far noisier than the visit curves.
+  - The curves meet at the full population only up to the choice of email: the recency
+    rule and random targeting both send the A/B winner to everyone and end at the same
+    point, while the uplift policy and the response model send each customer their own
+    choice.
+  - The random-targeting line is drawn from its own random ordering of the customers, a
+    different draw from the fixed-budget random policy in `policy.csv`, so the two give
+    different point estimates at the fixed budget. Both are valid draws of the same policy.
 
 ## Repeated cross-fitting over fold seeds
 
@@ -1300,51 +1323,3 @@ every stage output exists, that `results.json` validates, that the budget scaled
 rows, that a second run skips every cached stage, and that removing an output or passing
 `--force` reruns only what it should. The schema tests check the committed `results.json`
 and that the rendered document matches the schema.
-
-## The app and its live peeking simulator
-
-**What it does.** The Streamlit app in `app/` is a reader of the committed artifacts. Its
-Home, Readout, Targeting and Method pages show values from `reports/results.json` and the
-CSV tables that file names, and nothing else: the app never opens the raw data or the
-database, so it can be deployed from the repository alone. Lookups go through
-`abkit.appdata.find_row`, which fails unless exactly one record matches, so a page cannot
-show an ambiguous or stale number.
-
-The Peeking simulator page is the one place where numbers are computed on screen. It
-simulates an A/B test on a rate that is checked once a day: the user sets the baseline rate,
-the true relative lift, the users per day (split evenly between two arms), the number of
-days and the stopping rule. It reuses the pipeline's own code (`abkit.sequential`): the same
-simulated experiments, the same calibration of the Pocock and O'Brien–Fleming constants, the
-same six rules and the same summary. The mSPRT mixing scale is the minimum detectable effect
-of the fixed-horizon design at the chosen size, as in the pipeline.
-
-**Key quantities.** The share of simulated experiments that declare a winner is the false
-positive rate when the lift is zero and the power otherwise; it is shown with its Monte
-Carlo standard error sqrt(r (1 − r) / runs). The stopping-day chart is the share of
-experiments that stop with a declared winner on each day, plus the share that run to the
-end without one.
-
-**What differs from the pipeline's simulation.** Only the sizes, which are capped so a
-change of input answers in about two seconds: fewer simulated experiments and fewer null
-paths for the boundary constants than the study in the sequential section, so its Monte
-Carlo error is larger and is always printed next to the result. The Bayesian rule
-evaluates P(B > A) for each run and day directly instead of through the count boundary
-the pipeline uses; this is the same rule computed another way, cheaper for a few thousand
-runs because its cost does not grow with the sample size, and its runs are capped further
-because each evaluation is a numerical integral. The seed is the configured simulation
-seed, so the same inputs always give the same answer.
-
-**Assumptions.** Those of the sequential section: equal arm sizes, equal daily batches,
-independent customers and a binary outcome.
-
-**How it is tested.** Streamlit's `AppTest` runs every page and fails on any exception. The
-Readout page's headline effect is compared with `results.json` for every comparison and
-metric, the Home page's three numbers and decision with the sections they come from, and
-the Targeting page's table with the budget-curve row at several budgets. Every link on the
-Method page must point at a heading that exists in this document. For the simulator: the
-fixed-horizon false positive rate is within three Monte Carlo standard errors of 5% and
-naive peeking is more than five above it; the fixed-horizon power at a planted lift matches
-the closed-form power; for each of the six rules the wrapper's result equals the
-pipeline's rule applied to the same simulated experiments (which also checks the
-direct Bayesian evaluation against the count boundary, tested separately on four
-designs); and the largest allowed inputs answer within the time limit.

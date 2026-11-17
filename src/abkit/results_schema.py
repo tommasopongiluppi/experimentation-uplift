@@ -3,7 +3,7 @@
 The schema is the single source of truth for two things: the pipeline validates
 ``results.json`` against it at the end of every run, and ``docs/results_schema.md`` is
 rendered from it (``python -m abkit.results_schema``), so the document cannot drift from the
-check. Every number in the README, docs and app is read from the file this schema describes.
+check. Every number in the README and docs is read from the file this schema describes.
 """
 
 import json
@@ -496,7 +496,7 @@ def render_markdown() -> str:
         "The file is a JSON object with one top-level key per pipeline stage, sorted by name.",
         "Each stage replaces its own section and leaves the others untouched, so the file",
         "accumulates across stages. A `float` accepts an integer. `NaN` and infinity are",
-        "written as `null`. Every number quoted in the README, docs and app is read from this",
+        "written as `null`. Every number quoted in the README and docs is read from this",
         "file or from the CSV tables it names.",
         "",
         "## Sections",

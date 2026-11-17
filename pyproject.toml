@@ -19,7 +19,6 @@ dependencies = [
     "pyarrow>=14",
     "scikit-learn>=1.4",
     "matplotlib>=3.8",
-    "streamlit>=1.32",
 ]
 
 [project.optional-dependencies]
@@ -58,7 +57,6 @@ convention = "numpy"
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D", "T20"]
 "notebooks/**" = ["D", "T20"]
-"app/**" = ["D", "T20"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["abkit"]
