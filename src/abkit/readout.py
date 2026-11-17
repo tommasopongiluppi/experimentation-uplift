@@ -106,7 +106,7 @@ def adjust_pvalues(p_values: pd.Series, families: pd.Series) -> pd.Series:
 
 def _stats_lookup(con: duckdb.DuckDBPyConnection) -> tuple[dict[str, pd.DataFrame], float]:
     raw = arm_metrics(con).set_index(["metric", "arm"])
-    win = arm_metrics(con, winsorize=True).set_index(["metric", "arm"])
+    win = arm_metrics(con, winsorise=True).set_index(["metric", "arm"])
     cap = float(win["spend_cap"].iloc[0])
     by_metric = {m: raw.loc[m] for m in ("spend", *RATE_METRICS)}
     by_metric[SPEND_WINSORISED] = win.loc["spend"]
@@ -283,7 +283,7 @@ def build_cuped_readout(
     """
     sums = {
         "spend": arm_sufficient_stats(con),
-        SPEND_WINSORISED: arm_sufficient_stats(con, winsorize=True),
+        SPEND_WINSORISED: arm_sufficient_stats(con, winsorise=True),
     }
     rows_df = run_sql(con, "adjustment_rows")
     design = pretreatment_design(rows_df)

@@ -249,10 +249,32 @@ def test_paired_comparison_is_exact_for_identical_policies(rng):
     assert not rows["meaningful"].any()
 
 
+def test_budget_curve_at_the_budget_matches_the_policy_table(rng):
+    """One definition per policy: the curve at the fixed budget is the policy table's value."""
+    inputs = _inputs(rng, 2_000)
+    budget = 500
+    assignments, info = build_policies(inputs, "womens", rng, budget)
+    table, _, _ = evaluate_policies(
+        inputs, assignments, info["suppressed"], info["best_email"], "womens", rng, n_resamples=5
+    )
+    curve = budget_curve(inputs, info, "womens", step=budget)
+    assert set(curve["policy"]) == {"uplift", "response_model", "recency_rule", "random"}
+    for name in ("uplift", "response_model", "recency_rule", "random"):
+        assert email_counts(assignments[name])["n_emailed"] == budget
+        at_budget = curve[(curve["policy"] == name) & (curve["n_emailed"] == budget)].iloc[0]
+        for outcome, column in (("visit", "incremental_visits"), ("spend", "incremental_spend")):
+            expected = table[(table["policy"] == name) & (table["outcome"] == outcome)]
+            assert at_budget[column] == pytest.approx(expected["incremental_total"].iloc[0])
+    # The random ranking is the random policy's own permutation: its first `budget` customers
+    # are exactly the ones the policy emails, and smaller budgets are nested inside them.
+    order = np.argsort(-info["random_score"], kind="stable")
+    assert set(order[:budget]) == set(np.flatnonzero(assignments["random"] == "womens"))
+    assert len(set(info["random_score"])) == inputs.n
+
+
 def test_budget_curve_endpoints(rng):
     inputs = _inputs(rng, 2_000)
     _, info = build_policies(inputs, "womens", rng, 300)
-    info["random_order"] = rng.random(inputs.n)
     curve = budget_curve(inputs, info, "womens", step=500, cost_per_email=0.1)
     assert set(curve["policy"]) == {"uplift", "response_model", "recency_rule", "random"}
     # At the fixed budget each curve reproduces the policy of the same name: the recency rule

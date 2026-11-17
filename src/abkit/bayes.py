@@ -301,9 +301,6 @@ class PosteriorComparison:
     level: float
 
 
-RateComparison = PosteriorComparison
-
-
 def _mean_and_mcse(x: np.ndarray) -> tuple[float, float]:
     return float(x.mean()), float(x.std(ddof=1) / np.sqrt(x.size))
 
@@ -1295,7 +1292,7 @@ def build_bayes_spend(
         histogram table of the difference draws on raw spend).
     """
     raw = _spend_by_arm(con)
-    cap_win = float(arm_metrics(con, winsorize=True)["spend_cap"].iloc[0])
+    cap_win = float(arm_metrics(con, winsorise=True)["spend_cap"].iloc[0])
     win = {a: np.minimum(v, cap_win) for a, v in raw.items()}
     all_spend = np.concatenate(list(raw.values()))
     cap, floor = float(all_spend.max()), float(all_spend[all_spend > 0].min())

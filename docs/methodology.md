@@ -108,7 +108,7 @@ of squares of their spend. Python turns these into a tidy table with one row per
 mean = S / n, unbiased variance = (Q − S²/n) / (n − 1), and covariance with `history` =
 (P − S·Sx/n) / (n − 1). With fewer than two rows, variance and covariance are undefined (NaN).
 
-**Winsorised spend.** The same query takes a `winsorize` parameter. When set, spend is replaced
+**Winsorised spend.** The same query takes a `winsorise` parameter. When set, spend is replaced
 by min(spend, c), where c is the 95th percentile of converters' spend pooled across all arms
 (analysis plan §8), computed in SQL with linear interpolation between order statistics
 (`quantile_cont`, the numpy/pandas default). Zero spend is unchanged. The cap is returned with
@@ -1182,9 +1182,17 @@ effect before use, alongside the decile calibration plots. The scores were train
 visits; the conversion and spend values therefore measure how well a visit-based targeting
 carries over to those outcomes, not how well a conversion or spend model would do.
 
-**Budget curve.** For the uplift policy, the response model and random targeting, the
-incremental visits and spend are traced against the number of customers emailed, from 0 to
-everyone in steps of 1,000, each ranking sending its own choice of email.
+**Budget curve.** For the uplift policy, the response model, the recency rule and random
+targeting, the incremental visits and spend are traced against the number of customers
+emailed, from 0 to everyone in steps of 1,000, each ranking sending its own choice of email.
+
+**Random targeting is one draw.** A single random permutation of the customers
+(`config.SEEDS["uplift"]`) defines random targeting everywhere: the fixed-budget policy
+emails the first 10,000 customers of the permutation and the budget curve emails its first
+`k` at every budget `k`. The curve at the fixed budget is therefore the same number as the
+random row of `policy.csv` (analysis plan D9). It is one realisation of the policy: its
+expected value is the budget times the A/B winner's average effect, and a single draw sits
+above or below that by sampling noise, which the bootstrap interval of the random row covers.
 
 **Uncertainty and comparisons.** A customer-level bootstrap (1,000 resamples, the same
 resampled customers for every policy) gives percentile intervals with the Monte Carlo
@@ -1196,8 +1204,9 @@ fixed, so the intervals leave out model-fitting variability.
 recover the closed-form value of a fixed policy within Monte Carlo error. Every budgeted
 policy emails at most the budget, the suppression policy withholds exactly the budget, the
 uplift policy emails the highest positive predicted uplifts with each customer's better
-email, and identical policies give a paired difference of exactly zero. The stage runs end
-to end on the synthetic fixture.
+email, and identical policies give a paired difference of exactly zero. At the fixed budget
+the budget curve reproduces the policy of the same name for all four rankings, random
+targeting included. The stage runs end to end on the synthetic fixture.
 
 **What the experiment says about the policies.** Read from `reports/tables/policy.csv`,
 `policy_comparison.csv` and the `policy` section of `results.json`; the numbers live there,
@@ -1242,9 +1251,9 @@ not here.
     rule and random targeting both send the A/B winner to everyone and end at the same
     point, while the uplift policy and the response model send each customer their own
     choice.
-  - The random-targeting line is drawn from its own random ordering of the customers, a
-    different draw from the fixed-budget random policy in `policy.csv`, so the two give
-    different point estimates at the fixed budget. Both are valid draws of the same policy.
+  - The random-targeting line uses the same random permutation as the fixed-budget random
+    policy in `policy.csv`, so at the fixed budget the curve and the table agree exactly
+    (analysis plan D9).
 
 ## Repeated cross-fitting over fold seeds
 

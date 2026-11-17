@@ -8,7 +8,7 @@ from abkit.metrics import (
     METRICS,
     arm_metrics,
     arm_sufficient_stats,
-    summarize_sufficient_stats,
+    summarise_sufficient_stats,
 )
 from tests.conftest import customers_con
 
@@ -62,13 +62,13 @@ def test_arm_metrics_match_pandas_groupby(customers):
 
 
 def test_winsorised_arm_metrics_match_pandas_groupby(customers):
-    table = arm_metrics(customers_con(customers), winsorize=True)
+    table = arm_metrics(customers_con(customers), winsorise=True)
     _check_against_pandas(table, _winsorised(customers))
 
 
 def test_winsorisation_caps_exactly_at_converters_quantile(customers):
     cap = _expected_cap(customers)
-    stats = arm_sufficient_stats(customers_con(customers), winsorize=True)
+    stats = arm_sufficient_stats(customers_con(customers), winsorise=True)
     assert stats["spend_cap"].to_numpy() == pytest.approx([cap] * 3, **TOL)
     # The cap must bind on the fixture, otherwise the test checks nothing.
     assert (customers.spend > cap).sum() > 0
@@ -94,7 +94,7 @@ def test_winsorisation_planted_cap_is_pooled_not_per_arm(customers):
     toy["visit"] = toy["conversion"]
 
     raw = arm_sufficient_stats(customers_con(toy)).set_index("arm")
-    win = arm_sufficient_stats(customers_con(toy), winsorize=True).set_index("arm")
+    win = arm_sufficient_stats(customers_con(toy), winsorise=True).set_index("arm")
     assert win["spend_cap"].to_numpy() == pytest.approx([95.05] * 3, **TOL)
 
     # Only control has spend above the cap (96..100): each becomes exactly 95.05.
@@ -120,7 +120,7 @@ def test_summarize_closed_form():
     for m in METRICS:
         row |= {f"{m}_sum": y.sum(), f"{m}_sum_sq": (y * y).sum(), f"history_x_{m}": (x * y).sum()}
     row |= {"n_converters": 3, "conv_spend_sum": 4.0, "conv_spend_sum_sq": 6.0, "spend_cap": np.nan}
-    table = summarize_sufficient_stats(pd.DataFrame([row])).set_index("metric")
+    table = summarise_sufficient_stats(pd.DataFrame([row])).set_index("metric")
     assert table.loc["spend", "mean"] == pytest.approx(1.0)
     assert table.loc["spend", "var"] == pytest.approx(2 / 3)
     assert table.loc["spend", "history_mean"] == pytest.approx(2.5)
@@ -135,7 +135,7 @@ def test_summarize_small_n_gives_nan_variance():
     for m in METRICS:
         row |= {f"{m}_sum": 1.0, f"{m}_sum_sq": 1.0, f"history_x_{m}": 5.0}
     row |= {"n_converters": 0, "conv_spend_sum": 0.0, "conv_spend_sum_sq": 0.0, "spend_cap": 1.0}
-    table = summarize_sufficient_stats(pd.DataFrame([row])).set_index("metric")
+    table = summarise_sufficient_stats(pd.DataFrame([row])).set_index("metric")
     assert table.loc["visit", "mean"] == 1.0
     assert np.isnan(table.loc["visit", "var"]) and np.isnan(table.loc["visit", "cov_history"])
     assert np.isnan(table.loc[CONVERTER_SPEND, "mean"])
@@ -145,4 +145,4 @@ def test_winsorise_without_converters_raises(customers):
     toy = customers.head(20).copy()
     toy[["conversion", "spend"]] = [0, 0.0]
     with pytest.raises(ValueError, match="no converters"):
-        arm_sufficient_stats(customers_con(toy), winsorize=True)
+        arm_sufficient_stats(customers_con(toy), winsorise=True)

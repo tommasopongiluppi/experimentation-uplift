@@ -18,13 +18,15 @@ with the A/B winner. Intervals come from a customer-level bootstrap with the sam
 for every policy, so differences between policies are paired.
 
 Policies (``POLICIES``): email nobody; everyone gets the mens email; everyone gets the womens
-email; a random 10,000 get the A/B winner; the recency rule (most recent purchasers) sends
-the A/B winner to 10,000; the response model emails the 10,000 most likely responders with
-the email under which they are more likely to visit; the uplift policy gives each customer
-the email with the higher predicted uplift and emails the 10,000 with the highest such
-uplift (if positive); the exploratory mens-by-default policy holds the mens uplift at its
-average and uses the womens model only where it predicts more; the suppression policy emails
-everyone with their better email except the 10,000 lowest predicted uplifts.
+email; a random 10,000 get the A/B winner (the first 10,000 of one random permutation of the
+customers, which also orders the random line of the budget curve); the recency rule (most
+recent purchasers) sends the A/B winner to 10,000; the response model emails the 10,000 most
+likely responders with the email under which they are more likely to visit; the uplift
+policy gives each customer the email with the higher predicted uplift and emails the 10,000
+with the highest such uplift (if positive); the exploratory mens-by-default policy holds the
+mens uplift at its average and uses the womens model only where it predicts more; the
+suppression policy emails everyone with their better email except the 10,000 lowest
+predicted uplifts.
 
 The uplift scores are the X-learner's visit scores for both emails. For the mens email no
 ranking beat random in the uplift-model evaluation, so picking a "best" mens learner by its
@@ -89,7 +91,6 @@ BUDGETED: tuple[str, ...] = (
     "uplift_mens_default",
 )
 REFERENCES: tuple[str, ...] = ("uplift", "recency_rule")
-BUDGET_CURVE_POLICIES: tuple[str, ...] = ("uplift", "response_model", "random")
 BUDGET_STEP: int = 1_000
 N_RESAMPLES: int = 1_000
 OUTCOMES: tuple[str, ...] = config.OUTCOME_COLS
@@ -313,7 +314,9 @@ def build_policies(
     winner : str
         The A/B winner email, sent by the random, recency-rule and all-winner policies.
     rng : numpy.random.Generator
-        Draws the random policy's customers.
+        Draws the one random permutation of the customers that defines random targeting:
+        the random policy emails its first ``budget`` customers, and the budget curve its
+        first ``k`` at every budget ``k``.
     budget : int
         Maximum emails for the budgeted policies; the suppression policy withholds this many.
 
@@ -321,7 +324,9 @@ def build_policies(
     -------
     tuple
         ``(assignments, info)``: arm label per customer for each policy, and ``info`` with
-        the masks and constants used (``targeted``, ``suppressed``, ``mens_constant``).
+        the masks, constants and ranking scores used (``targeted``, ``suppressed``,
+        ``mens_constant``, and one score per ranking of :func:`budget_curve`, where a
+        higher score is emailed first).
     """
     n, control = inputs.n, config.CONTROL
     emails = np.array(config.TREATMENTS)
@@ -334,8 +339,11 @@ def build_policies(
         out[mask] = email if isinstance(email, str) else email[mask]
         return out.astype(str)
 
+    random_order = rng.permutation(n)
     random_mask = np.zeros(n, dtype=bool)
-    random_mask[rng.permutation(n)[:budget]] = True
+    random_mask[random_order[:budget]] = True
+    random_score = np.empty(n)
+    random_score[random_order] = np.arange(n, 0, -1)  # first in the permutation ranks highest
     recency = recency_rule_score(
         inputs.pre["recency"].to_numpy(), inputs.pre["history"].to_numpy(), inputs.customer_id
     )
@@ -369,7 +377,7 @@ def build_policies(
         "response_email": resp_email,
         "response_best": resp_best,
         "recency_score": recency,
-        "random_mask": random_mask,
+        "random_score": random_score,
     }
     return assignments, info
 
@@ -388,15 +396,15 @@ def _interval(reps: np.ndarray, alpha: float) -> tuple[np.ndarray, ...]:
     shape = reps.shape[1:]
     cols = reps.reshape(reps.shape[0], -1).T
     out = np.full((4, cols.shape[0]), np.nan)
-    for j, c in enumerate(cols):
-        c = np.sort(c[np.isfinite(c)])
-        if c.size == 0:
+    for j, col in enumerate(cols):
+        finite = np.sort(col[np.isfinite(col)])
+        if finite.size == 0:
             continue
         out[:, j] = (
-            np.quantile(c, alpha / 2),
-            np.quantile(c, 1 - alpha / 2),
-            _quantile_mcse(c, alpha / 2),
-            _quantile_mcse(c, 1 - alpha / 2),
+            np.quantile(finite, alpha / 2),
+            np.quantile(finite, 1 - alpha / 2),
+            _quantile_mcse(finite, alpha / 2),
+            _quantile_mcse(finite, 1 - alpha / 2),
         )
     return tuple(o.reshape(shape) for o in out)
 
@@ -566,7 +574,10 @@ def budget_curve(
 
     The uplift policy, the response model, the recency rule and random targeting are each
     extended from the fixed budget to every budget on the grid: the ranking's first ``k``
-    customers are emailed. The recency rule and random targeting send the A/B winner.
+    customers are emailed. The recency rule and random targeting send the A/B winner. Each
+    ranking is the one behind the fixed-budget policy of the same name, so the curve at the
+    fixed budget reproduces that policy's value; for random targeting this holds because
+    both use the same random permutation.
 
     Parameters
     ----------
@@ -594,7 +605,7 @@ def budget_curve(
         "uplift": (info["best_tau"], info["best_email"]),
         "response_model": (info["response_best"], info["response_email"]),
         "recency_rule": (info["recency_score"], np.full(n, winner)),
-        "random": (info["random_order"], np.full(n, winner)),
+        "random": (info["random_score"], np.full(n, winner)),
     }
     grid = [*range(0, n, step), n]
     rows = []
@@ -739,7 +750,6 @@ def run_policy(
     else:
         basis = "given"
     assignments, info = build_policies(inputs, winner, rng, budget)
-    info["random_order"] = rng.random(inputs.n)  # ranking for the random budget curve
     boot_rng = np.random.default_rng(config.SEEDS["bootstrap"])
     policy_table, comparison, suppressed = evaluate_policies(
         inputs,

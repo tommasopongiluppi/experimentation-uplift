@@ -59,10 +59,6 @@ def _f(type_: str, description: str, **fields: "Field") -> Field:
     return Field(type_, description, fields)
 
 
-def _opt(type_: str, description: str) -> Field:
-    return Field(type_, description, required=False)
-
-
 _ROWS = "One record per row of the table named by ``table``, with the same columns."
 _TABLE = "Path of the CSV behind this section, relative to the reports directory."
 _FIGURE = "Path of the PNG figure, relative to the reports directory."

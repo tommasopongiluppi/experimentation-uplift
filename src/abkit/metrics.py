@@ -87,7 +87,7 @@ COVARIATE: str = "history"
 
 
 def arm_sufficient_stats(
-    con: duckdb.DuckDBPyConnection, *, winsorize: bool = False
+    con: duckdb.DuckDBPyConnection, *, winsorise: bool = False
 ) -> pd.DataFrame:
     """Per-arm sums from ``sql/arm_metrics.sql``, one row per arm.
 
@@ -95,7 +95,7 @@ def arm_sufficient_stats(
     ----------
     con : duckdb.DuckDBPyConnection
         Connection with a ``customers`` table.
-    winsorize : bool, default False
+    winsorise : bool, default False
         If True, spend is capped at the 95th percentile of converters' spend pooled across
         arms (analysis plan §8), computed in SQL.
 
@@ -109,11 +109,11 @@ def arm_sufficient_stats(
     Raises
     ------
     ValueError
-        If ``winsorize`` is True and there are no converters to define the cap.
+        If ``winsorise`` is True and there are no converters to define the cap.
     """
-    df = run_sql(con, "arm_metrics", {"winsorize": bool(winsorize)})
+    df = run_sql(con, "arm_metrics", {"winsorise": bool(winsorise)})
     df["spend_cap"] = pd.to_numeric(df["spend_cap"], errors="coerce").astype(float)
-    if winsorize and df["spend_cap"].isna().any():
+    if winsorise and df["spend_cap"].isna().any():
         raise ValueError("Cannot winsorise spend: there are no converters to define the cap.")
     int_cols = ["n", "n_converters"]
     df[int_cols] = df[int_cols].astype("int64")
@@ -136,7 +136,7 @@ def _co_moment(
         return np.where(n > 1, (sum_xy - sum_x * sum_y / n) / (n - 1), np.nan)
 
 
-def summarize_sufficient_stats(stats: pd.DataFrame) -> pd.DataFrame:
+def summarise_sufficient_stats(stats: pd.DataFrame) -> pd.DataFrame:
     """Turn per-arm sums into a tidy table of means, variances and covariances.
 
     For each arm and metric, with n rows, sum S, sum of squares Q and cross-product with the
@@ -219,7 +219,7 @@ def summarize_sufficient_stats(stats: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
-def arm_metrics(con: duckdb.DuckDBPyConnection, *, winsorize: bool = False) -> pd.DataFrame:
+def arm_metrics(con: duckdb.DuckDBPyConnection, *, winsorise: bool = False) -> pd.DataFrame:
     """Per-arm means, unbiased variances and CUPED covariance terms for every outcome.
 
     Aggregation happens in SQL (``sql/arm_metrics.sql``), inference inputs are formed in
@@ -229,20 +229,20 @@ def arm_metrics(con: duckdb.DuckDBPyConnection, *, winsorize: bool = False) -> p
     ----------
     con : duckdb.DuckDBPyConnection
         Connection with a ``customers`` table.
-    winsorize : bool, default False
+    winsorise : bool, default False
         If True, use spend capped at the 95th percentile of converters' spend pooled across
         arms (analysis plan §8 sensitivity analysis).
 
     Returns
     -------
     pandas.DataFrame
-        Tidy table, one row per (arm, metric); see :func:`summarize_sufficient_stats`.
+        Tidy table, one row per (arm, metric); see :func:`summarise_sufficient_stats`.
     """
-    stats = arm_sufficient_stats(con, winsorize=winsorize)
+    stats = arm_sufficient_stats(con, winsorise=winsorise)
     logger.info(
-        "Computed arm metrics for %d arms (winsorize=%s, cap=%s)",
+        "Computed arm metrics for %d arms (winsorise=%s, cap=%s)",
         len(stats),
-        winsorize,
+        winsorise,
         stats["spend_cap"].iloc[0] if len(stats) else None,
     )
-    return summarize_sufficient_stats(stats)
+    return summarise_sufficient_stats(stats)

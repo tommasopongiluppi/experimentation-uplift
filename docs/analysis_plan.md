@@ -480,3 +480,27 @@ it was made before or after seeing the outcome results.
     hold on new customers, and they do not remove the selection effect, because every seed
     reuses the data the choice was made on. Confirming the choice needs a new experiment or
     a sample kept aside before any model is compared.
+
+### D9. Random targeting: one shared random draw for the fixed budget and the budget curve
+
+- **Date:** 2026-11-17. **Section:** §11. **Made after** the policy results had been seen.
+- **What changed.** §11 defines random targeting by customers "drawn at random" with
+  `config.SEEDS["uplift"]`. The policy stage used to make two draws from that seed: a
+  permutation whose first 10,000 customers formed the fixed-budget random policy
+  (`reports/tables/policy.csv`), and a second, independent ordering for the random line of
+  the budget curve (`reports/tables/policy_budget_curve.csv`). The two artifacts therefore
+  gave different point estimates for the same policy at the same budget. The stage now draws
+  one permutation of the customers. The fixed-budget policy emails its first 10,000, and the
+  budget curve emails its first *k* at every budget *k*, so the curve at 10,000 reproduces
+  the policy table exactly.
+- **Which draw is kept.** The permutation behind `policy.csv`. The policy table, its
+  bootstrap intervals and every paired comparison are unchanged; only the random line of the
+  budget curve (table and figure) changes. The draw was kept because the published
+  comparisons already rest on it, not because of its value.
+- **Alternative not taken.** The expected value of random targeting needs no draw: it is the
+  budget times the A/B winner's average treatment effect, with an interval from that
+  effect's standard error. It was not adopted because §11 pre-registered a random draw, and
+  because a drawn policy enters the paired bootstrap comparisons on the same footing as
+  every other policy. A single draw still differs from that expectation by sampling noise.
+- **Why.** One policy should have one value at one budget. Nothing else in the analysis
+  changes.

@@ -1,7 +1,7 @@
 -- Per-arm sufficient statistics for the outcome metrics, the CUPED covariate and spend among
 -- converters. Python turns these sums into means, variances and covariances (abkit.metrics).
 --
--- Parameter $winsorize (BOOLEAN): when true, spend is capped at the 95th percentile of
+-- Parameter $winsorise (BOOLEAN): when true, spend is capped at the 95th percentile of
 -- converters' spend pooled across arms (analysis plan §8). The cap is computed here, once, on
 -- all converters together, never per arm. quantile_cont interpolates linearly between order
 -- statistics (the numpy / pandas default). Zero spend is unchanged because the cap is >= 0.
@@ -16,7 +16,7 @@ base AS (
         c.history::DOUBLE AS x,
         c.visit::DOUBLE AS visit,
         c.conversion::DOUBLE AS conversion,
-        CASE WHEN $winsorize THEN least(c.spend, cap.spend_cap) ELSE c.spend END::DOUBLE AS spend,
+        CASE WHEN $winsorise THEN least(c.spend, cap.spend_cap) ELSE c.spend END::DOUBLE AS spend,
         cap.spend_cap
     FROM customers AS c
     CROSS JOIN cap
@@ -42,7 +42,7 @@ SELECT
     coalesce(sum(spend) FILTER (WHERE conversion = 1), 0) AS conv_spend_sum,
     coalesce(sum(spend * spend) FILTER (WHERE conversion = 1), 0) AS conv_spend_sum_sq,
     -- the cap applied (NULL when spend is raw)
-    CASE WHEN $winsorize THEN any_value(spend_cap) END AS spend_cap
+    CASE WHEN $winsorise THEN any_value(spend_cap) END AS spend_cap
 FROM base
 GROUP BY arm
 ORDER BY arm;

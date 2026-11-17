@@ -8,9 +8,12 @@ import pytest
 from abkit import config
 from abkit.pipeline import (
     FULL_SIZES,
+    PACKAGE_DIR,
     STAGES,
     Settings,
     StageOutcome,
+    _module_files,
+    _source_hash,
     budget_for,
     build_parser,
     fingerprint,
@@ -98,6 +101,59 @@ def test_fingerprint_tracks_inputs_params_and_code(tmp_path):
     assert not is_cached(stage, settings, cache, before)
     forced = Settings(data=FIXTURE_PATH, out=tmp_path, force=True)
     assert not is_cached(stage, forced, cache, before)
+
+
+def test_source_hash_ignores_docstrings_comments_and_layout(tmp_path):
+    original = tmp_path / "a.py"
+    original.write_text(
+        '"""Module docstring."""\n\n'
+        "LABEL = 'kept'\n\n\n"
+        "class K:\n"
+        '    """Class docstring."""\n\n'
+        "    def f(self, x):\n"
+        '        """Return x plus one."""\n'
+        "        return x + 1\n"
+    )
+    reworded = tmp_path / "b.py"
+    reworded.write_text(
+        '"""Another module docstring."""\n'
+        "LABEL = 'kept'  # a comment\n"
+        "class K:\n"
+        "    def f(self, x):\n"
+        '        """Reworded."""\n'
+        "        return (x +\n"
+        "                1)\n"
+    )
+    assert _source_hash(original) == _source_hash(reworded)
+    # Any change to the code changes the hash, including a string that is not a docstring.
+    for old, new in (("x + 1", "x + 2"), ("'kept'", "'changed'"), ("def f", "def g")):
+        changed = tmp_path / "c.py"
+        changed.write_text(original.read_text().replace(old, new))
+        assert _source_hash(changed) != _source_hash(original), (old, new)
+    # Files that are not Python are hashed by content.
+    sql, sql_comment = tmp_path / "q.sql", tmp_path / "r.sql"
+    sql.write_text("SELECT 1")
+    sql_comment.write_text("SELECT 1 -- one")
+    assert _source_hash(sql) != _source_hash(sql_comment)
+    assert _source_hash(tmp_path / "absent.py") == "missing"
+
+
+def test_stage_fingerprints_cover_their_own_modules_only():
+    def modules(name):
+        return {str(p.relative_to(PACKAGE_DIR)) for p in _module_files(STAGES[name].modules)}
+
+    # The cross-fitting does not import the policy or robustness code, so editing those
+    # must not rerun it; the stages that do import them still track them.
+    assert not {"uplift/policy.py", "uplift/robustness.py"} & modules("uplift")
+    assert "uplift/policy.py" in modules("policy")
+    assert "uplift/robustness.py" not in modules("policy")
+    assert {"uplift/policy.py", "uplift/robustness.py"} <= modules("robustness")
+    for name in ("uplift", "policy", "robustness"):
+        assert {"uplift/models.py", "uplift/learners.py", "uplift/crossfit.py"} <= modules(name)
+    # Every listed module exists, so a renamed file cannot silently drop out of a fingerprint.
+    for name, stage in STAGES.items():
+        for path in _module_files(stage.modules):
+            assert path.is_file(), f"{name}: {path} missing"
 
 
 def _assert_outputs_exist(settings: Settings, names: list[str]) -> None:

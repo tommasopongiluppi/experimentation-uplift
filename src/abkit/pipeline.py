@@ -8,13 +8,17 @@ Stages run in dependency order, from the raw download to the validated ``results
 Every stage caches its outputs: a fingerprint of its input files, the ``results.json``
 sections it reads, the source files it depends on and its settings is stored in
 ``data/pipeline_cache.json``, and the stage is skipped when the fingerprint is unchanged and
-its outputs still exist. ``--force`` ignores the cache. ``--fast`` replaces the simulation,
-bootstrap and seed counts with :data:`abkit.config.FAST_SIZES`; ``--data`` runs the whole
-pipeline on a CSV such as the synthetic fixture instead of the download; ``--out`` moves
-every output (database, processed data, reports) under another directory.
+its outputs still exist. Each stage lists the modules its own code imports, and Python
+sources are fingerprinted by their code, not their text, so editing a docstring, a comment
+or another stage's module does not rerun it. ``--force`` ignores the cache. ``--fast``
+replaces the simulation, bootstrap and seed counts with :data:`abkit.config.FAST_SIZES`;
+``--data`` runs the whole pipeline on a CSV such as the synthetic fixture instead of the
+download; ``--out`` moves every output (database, processed data, reports) under another
+directory.
 """
 
 import argparse
+import ast
 import datetime as dt
 import fnmatch
 import functools
@@ -77,6 +81,19 @@ FULL_SIZES: dict[str, int] = {
 FAST_UPLIFT_OUTCOMES: tuple[str, ...] = ("visit",)
 FAST_GRID: Grid = GRID[:1]
 ROBUSTNESS_MINUTES: int = 24
+#: Modules the uplift-model stage imports. The policy and robustness stages build on them and
+#: add their own module, so an edit to ``uplift/policy.py`` never reruns the cross-fitting.
+UPLIFT_MODEL_MODULES: tuple[str, ...] = (
+    "uplift/models.py",
+    "uplift/crossfit.py",
+    "uplift/evaluation.py",
+    "uplift/features.py",
+    "uplift/learners.py",
+    "frequentist.py",
+    "plots.py",
+)
+POLICY_MODULES: tuple[str, ...] = (*UPLIFT_MODEL_MODULES, "uplift/policy.py")
+ROBUSTNESS_MODULES: tuple[str, ...] = (*POLICY_MODULES, "uplift/robustness.py")
 
 
 @dataclass(frozen=True)
@@ -582,7 +599,7 @@ STAGES: dict[str, Stage] = {
                 *_uplift_figures(s),
             ],
             sections=("uplift_models",),
-            modules=("uplift/*.py", "plots.py"),
+            modules=UPLIFT_MODEL_MODULES,
             params=lambda s: {
                 "n_resamples": s.sizes["uplift_resamples"],
                 "outcomes": list(s.uplift_outcomes),
@@ -609,7 +626,7 @@ STAGES: dict[str, Stage] = {
             ],
             sections=("policy",),
             reads_sections=("frequentist", "bayes_spend"),
-            modules=("uplift/*.py", "plots.py"),
+            modules=POLICY_MODULES,
             params=lambda s: {
                 "n_resamples": s.sizes["policy_resamples"],
                 "budget": budget_for(s),
@@ -627,7 +644,7 @@ STAGES: dict[str, Stage] = {
             outputs=lambda s: _tables(s, uplift_robustness.TABLE_NAME),
             sections=("seed_robustness",),
             reads_sections=("frequentist", "bayes_spend"),
-            modules=("uplift/*.py",),
+            modules=ROBUSTNESS_MODULES,
             params=lambda s: {
                 "n_seeds": s.sizes["robustness_seeds"],
                 "budget": budget_for(s),
@@ -666,6 +683,34 @@ def _file_hash(path: Path) -> str:
     return h.hexdigest()
 
 
+def _is_docstring(node: ast.stmt) -> bool:
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    )
+
+
+def _source_hash(path: Path) -> str:
+    """Hash of a source file that ignores what cannot change a stage's outputs.
+
+    A Python file is hashed by its syntax tree with the docstrings removed, so comments,
+    formatting and docstring edits leave the hash unchanged while any change to the code
+    alters it. Other files (the SQL metric layer) are hashed by content. The tree's text
+    form can differ between Python versions, so a cache is only reused under the Python
+    version that wrote it.
+    """
+    if path.suffix != ".py" or not path.is_file():
+        return _file_hash(path)
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        if node.body and _is_docstring(node.body[0]):
+            node.body = node.body[1:] or [ast.Pass()]
+    return hashlib.sha256(ast.dump(tree).encode()).hexdigest()
+
+
 def _json_hash(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()
 
@@ -702,8 +747,9 @@ def fingerprint(stage: Stage, settings: Settings) -> str:
     Returns
     -------
     str
-        SHA-256 over the package version, the content of the input files and the source
-        files, the ``results.json`` sections the stage reads and its parameters.
+        SHA-256 over the package version, the content of the input files, the code of the
+        source files (see :func:`_source_hash`), the ``results.json`` sections the stage
+        reads and its parameters.
     """
     results = load_results(settings.results_path)
     payload = {
@@ -711,7 +757,7 @@ def fingerprint(stage: Stage, settings: Settings) -> str:
         "inputs": {p.name: _file_hash(p) for p in stage.inputs(settings)},
         "sections": {n: _json_hash(results.get(n)) for n in stage.reads_sections},
         "modules": {
-            str(p.relative_to(PACKAGE_DIR)): _file_hash(p) for p in _module_files(stage.modules)
+            str(p.relative_to(PACKAGE_DIR)): _source_hash(p) for p in _module_files(stage.modules)
         },
         "params": stage.params(settings),
     }

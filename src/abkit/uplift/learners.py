@@ -71,10 +71,12 @@ class _Constant:
         self.value = value
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        """Return the constant as P(y = 1) for every row, in scikit-learn's two-column layout."""
         p = np.full(len(X), self.value)
         return np.column_stack([1 - p, p])
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
+        """Return the constant for every row."""
         return np.full(len(X), self.value)
 
 
