@@ -20,6 +20,7 @@ from abkit.segments import (
     SEGMENT_OUTCOMES,
     SEGMENT_VARIABLES,
     _standard_error,
+    _wald,
     adjust_families,
     bh_rows,
     build_segment_tables,
@@ -160,6 +161,39 @@ def test_zero_variance_level_gives_a_zero_standard_error(rng):
     assert res.effects["a"][1] > 0.1
 
 
+def test_two_constant_levels_give_one_restriction_not_a_singular_solve(rng):
+    """Two levels with a constant outcome share one contrast: the test is on the range of V."""
+    n = 900
+    segment = np.repeat(["a", "b", "c"], n // 3)
+    treated = np.tile([0, 1], n // 2)
+    y = rng.gamma(2.0, 3.0, n) + 1.5 * treated
+    y[segment != "a"] = 0.0  # nobody in levels b and c spends, in either arm
+    res = interaction_test(y, treated, segment)
+    # Both interaction contrasts equal minus the effect in level a, so the only restriction
+    # is "the effect in level a is zero": a one-degree-of-freedom test with z squared.
+    effect, se = res.effects["a"]
+    assert res.dof == 1
+    assert res.statistic == pytest.approx((effect / se) ** 2, rel=1e-6)
+    assert res.p_value == pytest.approx(stats.chi2.sf((effect / se) ** 2, 1), rel=1e-6)
+    for level in ("b", "c"):
+        assert res.effects[level] == pytest.approx((0.0, 0.0), abs=1e-6)
+
+
+def test_wald_matches_the_solve_when_well_conditioned_and_handles_singular_blocks(rng):
+    a = rng.standard_normal((4, 4))
+    v = a @ a.T + np.eye(4)
+    b = rng.standard_normal(4)
+    statistic, dof = _wald(b, v)
+    assert dof == 4 and statistic == float(b @ np.linalg.solve(v, b))  # the same computation
+    # A duplicated contrast: rank 1, and the statistic is the single contrast's z squared.
+    statistic, dof = _wald(np.array([2.0, 2.0]), np.full((2, 2), 0.5))
+    assert dof == 1 and statistic == pytest.approx(2.0**2 / 0.5)
+    with pytest.raises(ValueError, match="zero variance"):
+        _wald(np.array([2.0, -1.0]), np.full((2, 2), 0.5))  # contrasts differ, variance says no
+    with pytest.raises(ValueError, match="no variance"):
+        _wald(np.array([0.0, 0.0]), np.zeros((2, 2)))
+
+
 def test_standard_error_treats_round_off_as_zero_and_rejects_a_real_negative():
     # -4.4e-16 is what a Linux build returned for a zero-variance level of the fixture.
     assert _standard_error(-4.440892098500626e-16, scale=0.5) == 0.0
@@ -281,7 +315,18 @@ def test_interaction_tests_use_only_the_two_arms(customers):
     table = interaction_tests(rows)
     two_arms = rows["arm"].isin(("mens", config.CONTROL)).sum()
     assert (table.loc[table["treatment"] == "mens", "n"] == two_arms).all()
-    assert (table["dof"] == table["n_levels"] - 1).all()
+    # Degrees of freedom: one per level beyond the first, except that levels whose outcome is
+    # constant in both arms (no converters in a small segment of the fixture) all have an
+    # effect of exactly zero and so share one restriction between them.
+    n_degenerate = 0
+    for row in table.itertuples():
+        pair = rows[rows["arm"].isin((row.treatment, row.control))]
+        by_level = pair.groupby(segment_column(pair, row.variable))[row.outcome]
+        constant = int((by_level.min() == by_level.max()).sum())
+        assert row.dof == row.n_levels - 1 - max(constant - 1, 0), (row.outcome, row.variable)
+        n_degenerate += constant > 1
+    assert n_degenerate > 0  # the fixture does contain such comparisons
+    assert np.isfinite(table["statistic"]).all() and table["p_value"].between(0, 1).all()
 
 
 # --- the README simulation ---------------------------------------------------------------------

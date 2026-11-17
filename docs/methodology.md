@@ -981,6 +981,17 @@ Benjamini–Hochberg's equals q · 15 / 20, its exact value under independence (
 Hochberg 1995), at the cost of lower power on the real effects. Every rate carries its Monte
 Carlo standard error next to the analytic reference.
 
+**Levels with a constant outcome.** In a small sample a level can have an outcome that is
+constant in both arms (no converters in a small segment). Its effect is exactly zero with
+variance zero, which floating-point round-off can leave a hair below zero; such a variance
+is treated as zero. When two or more levels are like this, their interaction contrasts are
+the same quantity and the covariance of the contrasts is singular. The Wald statistic is
+then computed on the range of that covariance, with its rank as the degrees of freedom, so
+that it tests exactly the restrictions the data can speak to. A plain linear solve on the
+singular matrix would return a number that depends on round-off and therefore on the
+platform. This does not arise on the real data, where every level has variation; it does on
+the 3,000-row test fixture.
+
 **Assumptions.** Randomisation holds within every segment because the segment variables are
 pre-treatment, so each within-level difference is an unbiased effect estimate. The interaction
 test's HC2 covariance is valid under heteroskedasticity across levels and arms; the chi-square

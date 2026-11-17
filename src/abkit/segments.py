@@ -202,6 +202,56 @@ def ols_hc2(design: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return beta, xtx_inv @ meat @ xtx_inv
 
 
+#: Above this condition number the covariance of the interaction contrasts is treated as
+#: singular and the Wald statistic is computed on its range.
+MAX_CONDITION: float = 1e10
+
+
+def _wald(b: np.ndarray, v: np.ndarray) -> tuple[float, int]:
+    """Wald statistic ``b' V^-1 b`` and its degrees of freedom, also for a singular ``V``.
+
+    With a well-conditioned ``V`` this is the usual statistic with ``len(b)`` degrees of
+    freedom. ``V`` is singular when two or more levels have an outcome that is constant in
+    both arms (no converters in several small segments): their effects are exactly zero, so
+    their interaction contrasts are the same quantity, minus the reference level's effect,
+    and carry one restriction between them, not several. The statistic is then computed on
+    the range of ``V`` (its eigenvectors with non-negligible eigenvalues) and the degrees of
+    freedom are the rank of ``V``, which tests exactly the restrictions the data can speak
+    to. Without this the result of a linear solve on a singular matrix depends on round-off
+    and therefore on the platform.
+
+    Parameters
+    ----------
+    b : numpy.ndarray
+        Interaction coefficients.
+    v : numpy.ndarray
+        Their covariance block.
+
+    Returns
+    -------
+    tuple
+        ``(statistic, degrees of freedom)``.
+
+    Raises
+    ------
+    ValueError
+        If ``V`` has no positive eigenvalue, or ``b`` has a component outside the range of
+        ``V`` (a non-zero contrast with zero variance), for which no test exists.
+    """
+    eigenvalues, vectors = np.linalg.eigh((v + v.T) / 2)
+    largest = float(eigenvalues.max())
+    if largest <= 0:
+        raise ValueError("The interaction contrasts have no variance; nothing to test.")
+    if float(eigenvalues.min()) > largest / MAX_CONDITION:
+        return float(b @ np.linalg.solve(v, b)), int(b.size)
+    keep = eigenvalues > largest / MAX_CONDITION
+    projections = vectors.T @ b
+    outside = np.abs(projections[~keep]).max(initial=0.0)
+    if outside > 1e-6 * max(float(np.abs(b).max()), 1e-300):
+        raise ValueError("An interaction contrast is non-zero but has zero variance.")
+    return float(np.sum(projections[keep] ** 2 / eigenvalues[keep])), int(keep.sum())
+
+
 def _standard_error(variance: float, scale: float) -> float:
     """Square root of a variance from a covariance matrix, tolerant of round-off below zero.
 
@@ -279,7 +329,7 @@ def interaction_test(y: ArrayLike, treated: ArrayLike, segment: ArrayLike) -> In
     k = len(levels) - 1
     idx = np.arange(1 + k + 1, 2 + 2 * k)
     b = beta[idx]
-    statistic = float(b @ np.linalg.solve(cov[np.ix_(idx, idx)], b))
+    statistic, dof = _wald(b, cov[np.ix_(idx, idx)])
     scale = float(np.abs(cov).max())
     effects = {levels[0]: (float(beta[1]), _standard_error(float(cov[1, 1]), scale))}
     for j, level in enumerate(levels[1:]):
@@ -289,8 +339,8 @@ def interaction_test(y: ArrayLike, treated: ArrayLike, segment: ArrayLike) -> In
         effects[level] = (float(pick @ beta), _standard_error(float(pick @ cov @ pick), scale))
     return InteractionResult(
         statistic=statistic,
-        dof=k,
-        p_value=float(stats.chi2.sf(statistic, k)),
+        dof=dof,
+        p_value=float(stats.chi2.sf(statistic, dof)),
         n=int(yv.size),
         n_levels=len(levels),
         effects=effects,
