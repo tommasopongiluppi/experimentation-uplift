@@ -19,6 +19,7 @@ from abkit.segments import (
     N_SIM_SEGMENTS,
     SEGMENT_OUTCOMES,
     SEGMENT_VARIABLES,
+    _standard_error,
     adjust_families,
     bh_rows,
     build_segment_tables,
@@ -143,6 +144,28 @@ def test_interaction_test_binary_segment_equals_the_squared_contrast(rng):
     name = next(n for n in ref.params.index if ":" in n)
     assert res.dof == 1
     assert res.statistic == pytest.approx((ref.params[name] / ref.bse[name]) ** 2, rel=1e-8)
+
+
+def test_zero_variance_level_gives_a_zero_standard_error(rng):
+    """An outcome that is constant within a level has variance zero, whatever the round-off."""
+    n = 600
+    segment = np.repeat(["a", "b", "c"], n // 3)
+    treated = np.tile([0, 1], n // 2)
+    y = rng.gamma(2.0, 3.0, n)
+    y[segment == "c"] = 0.0  # nobody in level c spends, in either arm
+    res = interaction_test(y, treated, segment)
+    effect, se = res.effects["c"]
+    assert effect == pytest.approx(0.0, abs=1e-9) and se == pytest.approx(0.0, abs=1e-6)
+    assert np.isfinite(res.statistic) and 0 <= res.p_value <= 1
+    assert res.effects["a"][1] > 0.1
+
+
+def test_standard_error_treats_round_off_as_zero_and_rejects_a_real_negative():
+    # -4.4e-16 is what a Linux build returned for a zero-variance level of the fixture.
+    assert _standard_error(-4.440892098500626e-16, scale=0.5) == 0.0
+    assert _standard_error(0.25, scale=0.5) == 0.5
+    with pytest.raises(ValueError, match="Negative variance"):
+        _standard_error(-1e-3, scale=0.5)
 
 
 def test_interaction_test_input_errors(rng):

@@ -202,6 +202,33 @@ def ols_hc2(design: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return beta, xtx_inv @ meat @ xtx_inv
 
 
+def _standard_error(variance: float, scale: float) -> float:
+    """Square root of a variance from a covariance matrix, tolerant of round-off below zero.
+
+    ``pick' V pick`` is non-negative for a positive semi-definite ``V``, but when the true
+    variance is exactly zero (an outcome that is constant within a level, such as no
+    converters in a small segment) floating-point round-off can leave it a few units in the
+    last place below zero, and on which side it lands depends on the platform's linear
+    algebra library. Such a value is treated as zero. A negative value that is not round-off
+    is an error.
+
+    Parameters
+    ----------
+    variance : float
+        The quadratic form.
+    scale : float
+        Largest absolute entry of the covariance matrix, which sets what counts as round-off.
+
+    Raises
+    ------
+    ValueError
+        If ``variance`` is negative by more than round-off.
+    """
+    if variance < -1e-9 * max(scale, 1e-300):
+        raise ValueError(f"Negative variance {variance!r}: the covariance is not valid.")
+    return math.sqrt(max(variance, 0.0))
+
+
 def interaction_test(y: ArrayLike, treated: ArrayLike, segment: ArrayLike) -> InteractionResult:
     """Test whether a treatment effect differs across the levels of a segment variable.
 
@@ -253,12 +280,13 @@ def interaction_test(y: ArrayLike, treated: ArrayLike, segment: ArrayLike) -> In
     idx = np.arange(1 + k + 1, 2 + 2 * k)
     b = beta[idx]
     statistic = float(b @ np.linalg.solve(cov[np.ix_(idx, idx)], b))
-    effects = {levels[0]: (float(beta[1]), float(math.sqrt(cov[1, 1])))}
+    scale = float(np.abs(cov).max())
+    effects = {levels[0]: (float(beta[1]), _standard_error(float(cov[1, 1]), scale))}
     for j, level in enumerate(levels[1:]):
         pick = np.zeros(beta.size)
         pick[1] = 1.0
         pick[idx[j]] = 1.0
-        effects[level] = (float(pick @ beta), float(math.sqrt(pick @ cov @ pick)))
+        effects[level] = (float(pick @ beta), _standard_error(float(pick @ cov @ pick), scale))
     return InteractionResult(
         statistic=statistic,
         dof=k,

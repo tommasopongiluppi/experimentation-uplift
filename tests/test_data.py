@@ -118,7 +118,7 @@ def test_pinned_checksum_mismatch_fails_and_removes_file(tmp_path):
 def test_fallback_is_used_and_recorded(tmp_path, caplog):
     raw_dir = tmp_path / "raw"
     renamed = tmp_path / "mirror.csv"
-    text = FIXTURE_PATH.read_text(newline="")
+    text = FIXTURE_PATH.read_bytes().decode()
     renamed.write_text(text.replace("zip_code", "Zip Code", 1), newline="")
     with caplog.at_level(logging.WARNING, logger="abkit.data"):
         path = _download(raw_dir, _src(tmp_path / "missing.csv"), _src(renamed, "mirror.csv"))
@@ -193,7 +193,7 @@ def test_loader_wrong_row_count_raises(tmp_path):
 
 
 def test_loader_blank_numeric_value_raises(tmp_path):
-    lines = FIXTURE_PATH.read_text(newline="").split("\r\n")
+    lines = FIXTURE_PATH.read_bytes().decode().split("\r\n")
     fields = lines[1].split(",")
     fields[0] = ""
     lines[1] = ",".join(fields)
